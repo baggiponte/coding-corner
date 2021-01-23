@@ -84,7 +84,26 @@ vaccinations_by_date %<>%
   
 vaccinations_by_date
 ```
-Now we can plot this!
+
+# Plotting
+
+Now we can plot some things. Let's start with the daily vaccinations.
+
+```{r}
+vaccinations_by_date %>%
+  ggplot(aes(
+    x = data,
+    y = nuovi_vaccinati
+  )) +
+  geom_line() +
+  labs(
+    title = 'Doses Injected by Day',
+    x = 'Date',
+    y = NULL
+  )
+```
+
+And then see how the total vaccinations compare to the total doses delivered:
 
 ```{r}
 vaccinations_by_date %>%
@@ -100,23 +119,13 @@ vaccinations_by_date %>%
     x = 'Date',
     y = NULL
   )
-
-vaccinations_by_date %>%
-  ggplot(aes(
-    x = data,
-    y = nuovi_vaccinati
-  )) +
-  geom_line() +
-  labs(
-    title = 'Doses Injected by Day',
-    x = 'Date',
-    y = NULL
-  )
 ```
 
 Things I learned: if you put `geom_area()` last, it will cover everything else.
 
 # Who's doing better?
+
+Let's use some other data to find the region which is performing better.
 
 ```{r}
 totals_by_area <- read_csv(

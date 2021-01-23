@@ -95,7 +95,23 @@ vaccinations_by_area %&gt;%
 ## #   personale_non_sanitario_totale &lt;dbl&gt;, ospiti_rsa_totale &lt;dbl&gt;,
 ## #   prima_dose_totale &lt;dbl&gt;, popolazione_2020 &lt;dbl&gt;, dosi_percento &lt;dbl&gt;,
 ## #   vaccinazioni_percento &lt;dbl&gt;, dosi_usate_percento &lt;dbl&gt;</code></pre>
-<p>Now we can plot this!</p>
+</div>
+<div id="plotting" class="section level1">
+<h1>Plotting</h1>
+<p>Now we can plot some things. Let’s start with the daily vaccinations.</p>
+<pre class="r"><code>vaccinations_by_date %&gt;%
+  ggplot(aes(
+    x = data,
+    y = nuovi_vaccinati
+  )) +
+  geom_line() +
+  labs(
+    title = &#39;Doses Injected by Day&#39;,
+    x = &#39;Date&#39;,
+    y = NULL
+  )</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<p>And then see how the total vaccinations compare to the total doses delivered:</p>
 <pre class="r"><code>vaccinations_by_date %&gt;%
   ggplot(aes(
    x = data,
@@ -109,23 +125,12 @@ vaccinations_by_area %&gt;%
     x = &#39;Date&#39;,
     y = NULL
   )</code></pre>
-<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
-<pre class="r"><code>vaccinations_by_date %&gt;%
-  ggplot(aes(
-    x = data,
-    y = nuovi_vaccinati
-  )) +
-  geom_line() +
-  labs(
-    title = &#39;Doses Injected by Day&#39;,
-    x = &#39;Date&#39;,
-    y = NULL
-  )</code></pre>
-<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-5-2.png" width="672" /></p>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
 <p>Things I learned: if you put <code>geom_area()</code> last, it will cover everything else.</p>
 </div>
 <div id="whos-doing-better" class="section level1">
 <h1>Who’s doing better?</h1>
+<p>Let’s use some other data to find the region which is performing better.</p>
 <pre class="r"><code>totals_by_area &lt;- read_csv(
   &#39;https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/totals_by_area_ita.csv&#39;, col_types = cols(area = col_factor())
 ) %&gt;%
@@ -167,5 +172,5 @@ totals_by_area</code></pre>
     x = NULL,
     y = NULL
   )</code></pre>
-<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
 </div>
