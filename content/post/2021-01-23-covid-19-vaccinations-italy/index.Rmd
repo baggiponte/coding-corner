@@ -150,8 +150,8 @@ totals_by_area %>%
   # xlim(0,100) +
   # ylim(0,100) +
   labs(
-    title = 'Quale regione è più avanti?',
-    subtitle = 'Dosi ricevute e dosi somministrate ogni 1000 abitanti',
+    title = 'Which Region is Ahead?',
+    subtitle = 'Doses delivered compared to doses injected',
     x = NULL,
     y = NULL
   )
