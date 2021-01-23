@@ -1,0 +1,6 @@
+# Specify redirects
+
+http://louisville-dockless-vehicles.rbind.io/*      https://louisville-dockless-vehicles.rbind.io/:splat  301!
+http://louisville-dockless-vehicles.netlify.app/*   https://louisville-dockless-vehicles.rbind.io/:splat  301!
+https://louisville-dockless-vehicles.netlify.app/*  https://louisville-dockless-vehicles.rbind.io/:splat  301!
+

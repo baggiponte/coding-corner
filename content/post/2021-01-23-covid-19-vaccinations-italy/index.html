@@ -1,0 +1,171 @@
+---
+title: 'COVID-19 Vaccinations Data: Some Visualisations for Italy'
+author: 'Luca Baggi'
+date: '2021-01-23'
+slug: 'covid-19-vaccinations-italy'
+categories: []
+tags: []
+ShowToc: true
+---
+
+<script src="{{< blogdown/postref >}}index_files/header-attrs/header-attrs.js"></script>
+
+
+<p>Now, let’s get produce some more informative visualisations.</p>
+<pre class="r"><code>library(tidyverse)
+theme_set(theme_minimal())</code></pre>
+<div id="load-data" class="section level1">
+<h1>Load Data</h1>
+<pre class="r"><code>read_csv(
+  &#39;https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/doses_by_date_ita.csv&#39;,
+) -&gt; doses_by_date 
+
+read_csv(
+  &#39;https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/vaccinations_by_area_ita.csv&#39;,
+  col_types = cols(
+    area = col_factor()
+  )) -&gt; vaccinations_by_area</code></pre>
+<p>These two datasets are incompatible and we need to:</p>
+<ul>
+<li>Add missing dates to complete the time series.</li>
+<li><code>group_by(date)</code> to obtain the time series for Italian data.</li>
+</ul>
+<pre class="r"><code># create the grid
+dates_grid &lt;-
+  expand_grid(
+    data = seq.Date(
+      from = min(vaccinations_by_area$data), to = max(vaccinations_by_area$data), by = &#39;day&#39;
+    ),
+    area = forcats::fct_unique(vaccinations_by_area$area)
+  )
+
+vaccinations_by_area %&gt;%
+  # perform the join
+  full_join(dates_grid, by = c(&#39;area&#39;, &#39;data&#39;)) %&gt;%
+  # reorder data
+  arrange(area, data) %&gt;%
+  # replace NA with 0
+  mutate(across(!ends_with(c(&#39;totale&#39;, &#39;data&#39;, &#39;area&#39;)), ~ coalesce(.x, 0))) %&gt;%
+  # fill cumsum columns with precedent value
+  # actually unneeded!
+  fill(ends_with(&#39;totale&#39;)) %&gt;%
+  # group by data
+  group_by(data) %&gt;%
+  summarise(across(!ends_with(c(&#39;totale&#39;, &#39;area&#39;, &#39;data&#39;)), sum)) -&gt; vaccinations_by_date</code></pre>
+<p>Now that the two are compatible, we can join them. We shall drop <code>over80</code> as the data is not being entered correctly at the moment.</p>
+<pre class="r"><code>vaccinations_by_date %&lt;&gt;%
+  select(-over80) %&gt;%
+  inner_join(doses_by_date) %&gt;%
+  rename(
+    consegne_pfizer = totale_pfizer,
+    consegne_moderna = totale_moderna,
+    nuove_consegne = totale_dosi_consegnate,
+    dosi_totale = totale_dosi
+  ) %&gt;%
+  mutate(
+    # create cumulative columns
+    across(2:8, list(totale = cumsum)),
+    # let&#39;s add population data
+    popolazione_2020 = 59641488,
+    dosi_percento = round(dosi_totale / popolazione_2020 * 1000, digits = 2),
+    vaccinazioni_percento = round(nuovi_vaccinati_totale / popolazione_2020 * 1000, digits = 2),
+    dosi_usate_percento = round(nuovi_vaccinati_totale / dosi_totale * 100, digits = 2)
+  ) %&gt;%
+  rename(vaccinati_totale = nuovi_vaccinati_totale)</code></pre>
+<pre><code>## Joining, by = &quot;data&quot;</code></pre>
+<pre class="r"><code>vaccinations_by_date</code></pre>
+<pre><code>## # A tibble: 28 x 24
+##    data       nuovi_vaccinati sesso_maschile sesso_femminile operatori_sanit…
+##    &lt;date&gt;               &lt;dbl&gt;          &lt;dbl&gt;           &lt;dbl&gt;            &lt;dbl&gt;
+##  1 2020-12-27            6983           3306            3677             5811
+##  2 2020-12-28             950            435             515              940
+##  3 2020-12-29             902            387             515              869
+##  4 2020-12-30            4585           1813            2772             3832
+##  5 2020-12-31           24935           9666           15269            20024
+##  6 2021-01-01           10881           4184            6697             9729
+##  7 2021-01-02           37620          14838           22782            32633
+##  8 2021-01-03           34594          13503           21091            30019
+##  9 2021-01-04           66996          26098           40898            56033
+## 10 2021-01-05           78330          29900           48430            62885
+## # … with 18 more rows, and 19 more variables: personale_non_sanitario &lt;dbl&gt;,
+## #   ospiti_rsa &lt;dbl&gt;, prima_dose &lt;dbl&gt;, seconda_dose &lt;dbl&gt;,
+## #   consegne_pfizer &lt;dbl&gt;, consegne_moderna &lt;dbl&gt;, nuove_consegne &lt;dbl&gt;,
+## #   dosi_totale &lt;dbl&gt;, vaccinati_totale &lt;dbl&gt;, sesso_maschile_totale &lt;dbl&gt;,
+## #   sesso_femminile_totale &lt;dbl&gt;, operatori_sanitari_totale &lt;dbl&gt;,
+## #   personale_non_sanitario_totale &lt;dbl&gt;, ospiti_rsa_totale &lt;dbl&gt;,
+## #   prima_dose_totale &lt;dbl&gt;, popolazione_2020 &lt;dbl&gt;, dosi_percento &lt;dbl&gt;,
+## #   vaccinazioni_percento &lt;dbl&gt;, dosi_usate_percento &lt;dbl&gt;</code></pre>
+<p>Now we can plot this!</p>
+<pre class="r"><code>vaccinations_by_date %&gt;%
+  ggplot(aes(
+   x = data,
+   y = dosi_totale
+  )) +
+  geom_area(fill = &#39;salmon&#39;) +
+  geom_line(aes(y = vaccinati_totale)) +
+  theme_minimal() +
+  labs(
+    title = &#39;Total Doses and Doses Injected Over Time&#39;,
+    x = &#39;Date&#39;,
+    y = NULL
+  )</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<pre class="r"><code>vaccinations_by_date %&gt;%
+  ggplot(aes(
+    x = data,
+    y = nuovi_vaccinati
+  )) +
+  geom_line() +
+  labs(
+    title = &#39;Doses Injected by Day&#39;,
+    x = &#39;Date&#39;,
+    y = NULL
+  )</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-5-2.png" width="672" /></p>
+<p>Things I learned: if you put <code>geom_area()</code> last, it will cover everything else.</p>
+</div>
+<div id="whos-doing-better" class="section level1">
+<h1>Who’s doing better?</h1>
+<pre class="r"><code>totals_by_area &lt;- read_csv(
+  &#39;https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/totals_by_area_ita.csv&#39;, col_types = cols(area = col_factor())
+) %&gt;%
+  select(-NUTS2, -nome)
+
+totals_by_area</code></pre>
+<pre><code>## # A tibble: 22 x 17
+##    area  popolazione_2020 vaccinati_totale sesso_maschile sesso_femminile
+##    &lt;fct&gt;            &lt;dbl&gt;            &lt;dbl&gt;          &lt;dbl&gt;           &lt;dbl&gt;
+##  1 ABR            1293941            19035           7024           12011
+##  2 BAS             553254            11162           4555            6607
+##  3 CAL            1894110            20553          10151           10402
+##  4 CAM            5712143           113769          54923           58846
+##  5 EMR            4464119           127416          42953           84463
+##  6 FVG            1206216            33216          11088           22128
+##  7 LAZ            5755700           135633          52501           83132
+##  8 LIG            1524826            36969          13297           23672
+##  9 LOM           10027602           218710          71933          146777
+## 10 MAR            1512672            28215           9984           18231
+## # … with 12 more rows, and 12 more variables: operatori_sanitari &lt;dbl&gt;,
+## #   personale_non_sanitario &lt;dbl&gt;, ospiti_rsa &lt;dbl&gt;, over80 &lt;dbl&gt;,
+## #   prima_dose &lt;dbl&gt;, seconda_dose &lt;dbl&gt;, totale_pfizer &lt;dbl&gt;,
+## #   totale_moderna &lt;dbl&gt;, totale_dosi &lt;dbl&gt;, dosi_ogni_mille &lt;dbl&gt;,
+## #   vaccinati_ogni_mille &lt;dbl&gt;, percent_vaccini_usati &lt;dbl&gt;</code></pre>
+<pre class="r"><code>totals_by_area %&gt;%
+  filter(area != &#39;ITA&#39;) %&gt;%
+  ggplot(aes(
+    x = dosi_ogni_mille,
+    y = vaccinati_ogni_mille
+  )) +
+  geom_vline(xintercept = mean(totals_by_area$dosi_ogni_mille), color = &#39;grey&#39;) +
+  geom_hline(yintercept = mean(totals_by_area$vaccinati_ogni_mille), color = &#39;grey&#39;) +
+  geom_text(aes(label = area)) +
+  # xlim(0,100) +
+  # ylim(0,100) +
+  labs(
+    title = &#39;Quale regione è più avanti?&#39;,
+    subtitle = &#39;Dosi ricevute e dosi somministrate ogni 1000 abitanti&#39;,
+    x = NULL,
+    y = NULL
+  )</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+</div>

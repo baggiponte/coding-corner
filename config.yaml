@@ -1,7 +1,7 @@
-theme: "hugo-PaperMod"
-baseURL: /
+theme: 'hugo-PaperMod'
+baseURL: https://coding-corner.netlify.app/
 languageCode: en-us
-title: "💻 My Coding Corner"
+title: '💻 My Coding Corner'
 
 params:
   author: 'Luca Baggi'
@@ -15,8 +15,8 @@ params:
       
   socialIcons:
     - name: twitter
-      url: "https://twitter.com/LucaBaggi1997"
+      url: 'https://twitter.com/LucaBaggi1997'
     - name: linkedin
-      url: "https://www.linkedin.com/in/lucabaggi/"
+      url: 'https://www.linkedin.com/in/lucabaggi/'
     - name: github
-      url: "https://github.com/baggiponte"
+      url: 'https://github.com/baggiponte'
