@@ -1,0 +1,619 @@
+---
+title: Longer Versus Wider Table Format
+author: Luca baggi
+date: '2021-01-23'
+slug: []
+categories: []
+tags: []
+ShowToc: true
+---
+
+<script src="{{< blogdown/postref >}}index_files/header-attrs/header-attrs.js"></script>
+
+
+<p>Today’s goals is to compare readability with long versus wide format of data. Plus, we will fill a date column with missing values in a panel dataset. Let’s load the packages we are going to use:</p>
+<pre class="r"><code>library(tidyverse)
+
+# set a theme to stay for the rest of the plotting
+library(ggthemes)
+theme_set(theme_fivethirtyeight())</code></pre>
+<div id="load-the-data" class="section level1">
+<h1>Load the Data</h1>
+<p>We will be using COVID-19 vaccination data, which are available at the following <a href="https://github.com/italia/covid19-opendata-vaccini">repo</a>. I also collected and wrangled the data <a href="https://github.com/orizzontipolitici/covid19-vaccine-data">here</a> for <a href="https://www.orizzontipolitici.it/">Orizzonti Politici</a>.</p>
+<p>We proceed by loading the dataset via its url, so that it’s updated every time we run the script.</p>
+<pre class="r"><code>url_doses_delivered_ita &lt;-
+  &quot;https://raw.githubusercontent.com/italia/covid19-opendata-vaccini/master/dati/consegne-vaccini-latest.csv&quot;
+
+read_csv(url_doses_delivered_ita, col_types = cols(area = col_factor())) %&gt;%
+  rename(
+    dosi_consegnate = numero_dosi,
+    data = data_consegna
+  ) %&gt;%
+  relocate(data, .after = &#39;area&#39;) -&gt; doses
+
+doses %&gt;% head() %&gt;% knitr::kable()</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">area</th>
+<th align="left">data</th>
+<th align="left">fornitore</th>
+<th align="right">dosi_consegnate</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2020-12-27</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">135</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2020-12-30</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">7800</td>
+</tr>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2021-01-05</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">3900</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2021-01-07</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">3900</td>
+</tr>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2021-01-11</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">3900</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2021-01-12</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">4875</td>
+</tr>
+</tbody>
+</table>
+<p>Our data has the following columns: <code>area</code> indicates the region, <code>data</code> when deliveries happened, <code>fornitore</code> is the supplier, <code>dosi_consegnate</code> how many doses have been delivered.</p>
+<p>Now we will perform the same operations on the dataset. Namely, we are going to:</p>
+<ul>
+<li>Create a cumulative sum of doses column for each supplier.</li>
+<li>Create a cumulative sum of doses</li>
+</ul>
+<p>After choosing the most informative or readable one, we are going to create the implicitly missing <code>data</code> values for each region.</p>
+</div>
+<div id="work-with-long-format" class="section level1">
+<h1>Work with Long Format</h1>
+<p>Data is already in the long format (normally, we would need to use <code>pivot_longer()</code> to switch from wide to long format).</p>
+<p>First, we will group the data by <code>area</code> and <code>fornitore</code> to compute the cumulative sum of doses delivered by each supplier in each region. Then, we will only group it by <code>area</code> and do the following:</p>
+<ul>
+<li>Fill the missing values of each cumulative sum column with its precedent value.</li>
+<li>Replace the remaining missing values (i.e., those with precedent value == NA) to 0.</li>
+<li>Add the column with total cumulative doses delivered in each region by every supplier.</li>
+</ul>
+<pre class="r"><code>doses %&gt;%
+  group_by(area, fornitore) %&gt;%
+  mutate(
+    # create cumsum for each `fornitore`
+    totale_pfizer = case_when(fornitore != &#39;Moderna&#39; ~ cumsum(dosi_consegnate)),
+    totale_moderna = case_when(fornitore == &#39;Moderna&#39; ~ cumsum(dosi_consegnate)),
+  ) %&gt;%
+  group_by(area) %&gt;%
+  # fill missing values with the precedent one
+  fill(totale_pfizer, totale_moderna) %&gt;%
+  mutate(
+    # replace NAs with 0
+    totale_pfizer = coalesce(totale_pfizer, 0),
+    totale_moderna = coalesce(totale_moderna, 0),
+    # create cumsum column
+    totale_dosi = cumsum(dosi_consegnate)
+  ) %&gt;%
+  ungroup() -&gt; doses_long
+
+doses_long %&gt;% head(10) %&gt;% knitr::kable()</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">area</th>
+<th align="left">data</th>
+<th align="left">fornitore</th>
+<th align="right">dosi_consegnate</th>
+<th align="right">totale_pfizer</th>
+<th align="right">totale_moderna</th>
+<th align="right">totale_dosi</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2020-12-27</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">135</td>
+<td align="right">135</td>
+<td align="right">0</td>
+<td align="right">135</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2020-12-30</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">7800</td>
+<td align="right">7935</td>
+<td align="right">0</td>
+<td align="right">7935</td>
+</tr>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2021-01-05</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">3900</td>
+<td align="right">11835</td>
+<td align="right">0</td>
+<td align="right">11835</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2021-01-07</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">3900</td>
+<td align="right">15735</td>
+<td align="right">0</td>
+<td align="right">15735</td>
+</tr>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2021-01-11</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">3900</td>
+<td align="right">19635</td>
+<td align="right">0</td>
+<td align="right">19635</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2021-01-12</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">4875</td>
+<td align="right">24510</td>
+<td align="right">0</td>
+<td align="right">24510</td>
+</tr>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2021-01-13</td>
+<td align="left">Moderna</td>
+<td align="right">1300</td>
+<td align="right">24510</td>
+<td align="right">1300</td>
+<td align="right">25810</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2021-01-18</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">3510</td>
+<td align="right">28020</td>
+<td align="right">1300</td>
+<td align="right">29320</td>
+</tr>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2021-01-20</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">3510</td>
+<td align="right">31530</td>
+<td align="right">1300</td>
+<td align="right">32830</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2021-01-21</td>
+<td align="left">Pfizer/BioNTech</td>
+<td align="right">2340</td>
+<td align="right">33870</td>
+<td align="right">1300</td>
+<td align="right">35170</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="wide-format" class="section level1">
+<h1>Wide Format</h1>
+<p>Now, we have to turn <code>doses</code> into the wide format. Then we perform the same operations as above, with slightly different steps.</p>
+<pre class="r"><code>doses %&gt;%
+  # pivot to the wider format
+  pivot_wider(
+    # create new features out of the levels of the following column
+    names_from = fornitore,
+    # values of the new features come from the following column
+    values_from = dosi_consegnate
+  ) %&gt;%
+  # for simplicity, let&#39;s rename
+  rename(
+    dosi_pfizer = &#39;Pfizer/BioNTech&#39;,
+    dosi_moderna = &#39;Moderna&#39;
+  ) %&gt;%
+  group_by(area) %&gt;%
+  mutate(
+    # replce NA with zero
+    dosi_pfizer = coalesce(dosi_pfizer, 0),
+    dosi_moderna = coalesce(dosi_moderna, 0),
+    # create columns with totals
+    totale_pfizer = cumsum(dosi_pfizer),
+    totale_moderna = cumsum(dosi_moderna),
+    totale_dosi = totale_moderna + totale_pfizer
+  ) %&gt;%
+  ungroup() -&gt; doses_wide
+
+doses_wide %&gt;% head(10) %&gt;% knitr::kable()</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">area</th>
+<th align="left">data</th>
+<th align="right">dosi_pfizer</th>
+<th align="right">dosi_moderna</th>
+<th align="right">totale_pfizer</th>
+<th align="right">totale_moderna</th>
+<th align="right">totale_dosi</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2020-12-27</td>
+<td align="right">135</td>
+<td align="right">0</td>
+<td align="right">135</td>
+<td align="right">0</td>
+<td align="right">135</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2020-12-30</td>
+<td align="right">7800</td>
+<td align="right">0</td>
+<td align="right">7935</td>
+<td align="right">0</td>
+<td align="right">7935</td>
+</tr>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2021-01-05</td>
+<td align="right">3900</td>
+<td align="right">0</td>
+<td align="right">11835</td>
+<td align="right">0</td>
+<td align="right">11835</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2021-01-07</td>
+<td align="right">3900</td>
+<td align="right">0</td>
+<td align="right">15735</td>
+<td align="right">0</td>
+<td align="right">15735</td>
+</tr>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2021-01-11</td>
+<td align="right">3900</td>
+<td align="right">0</td>
+<td align="right">19635</td>
+<td align="right">0</td>
+<td align="right">19635</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2021-01-12</td>
+<td align="right">4875</td>
+<td align="right">0</td>
+<td align="right">24510</td>
+<td align="right">0</td>
+<td align="right">24510</td>
+</tr>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2021-01-13</td>
+<td align="right">0</td>
+<td align="right">1300</td>
+<td align="right">24510</td>
+<td align="right">1300</td>
+<td align="right">25810</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2021-01-18</td>
+<td align="right">3510</td>
+<td align="right">0</td>
+<td align="right">28020</td>
+<td align="right">1300</td>
+<td align="right">29320</td>
+</tr>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2021-01-20</td>
+<td align="right">3510</td>
+<td align="right">0</td>
+<td align="right">31530</td>
+<td align="right">1300</td>
+<td align="right">32830</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2021-01-21</td>
+<td align="right">2340</td>
+<td align="right">0</td>
+<td align="right">33870</td>
+<td align="right">1300</td>
+<td align="right">35170</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="considerations-long-vs-wide" class="section level1">
+<h1>Considerations: Long vs Wide</h1>
+<p>There is not a great deal of difference, but I would say the wide format is more readable as it is more clear which supplier delivered its vaccine doses. We will stick to that.</p>
+</div>
+<div id="create-a-grid-with-missing-data-for-each-observations" class="section level1">
+<h1>Create a grid with missing data for each observations</h1>
+<p>Now, notice that there are many implicitly missing values. Let’s look at Abruzzo (<code>ABR</code> area): first deliveries occur on December 27th, 2020, then on the 30th. We want to add a row for each of the missing dates, fill every missing value with 0 and then compute the cumulative sums again.</p>
+<p>One note: this would have been simpler to do before evaluating which format we want to use, but at least it will be a useful exercise. Notice that the script I am using for the original repo will be the simpler one and this is just a documentation of the tinkering to find the most elegant way of writing the script.</p>
+<p>To create the grid, we will use the tidy version of <code>expand.grid</code>:</p>
+<pre class="r"><code>dates &lt;- expand_grid(
+  data = seq.Date(from = min(doses_wide$data), to = lubridate::today(), by = &#39;day&#39;),
+  area = forcats::fct_unique(doses_wide$area)
+)</code></pre>
+<p>And then we perform a <code>full_join</code> to intersect the data:</p>
+<pre class="r"><code>doses_wide %&lt;&gt;%
+  full_join(dates, by = c(&#39;data&#39;, &#39;area&#39;)) %&gt;%
+  # reorder dates
+  arrange(area, data) %&gt;%
+  # replace missing vaues
+  mutate(
+    dosi_pfizer = coalesce(dosi_pfizer, 0),
+    dosi_moderna = coalesce(dosi_moderna, 0),
+  ) %&gt;%
+  # fill missing cumulative values with precedent one
+  fill(totale_pfizer, totale_moderna, totale_dosi)
+
+doses_wide %&gt;% head() %&gt;% knitr::kable()</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">area</th>
+<th align="left">data</th>
+<th align="right">dosi_pfizer</th>
+<th align="right">dosi_moderna</th>
+<th align="right">totale_pfizer</th>
+<th align="right">totale_moderna</th>
+<th align="right">totale_dosi</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2020-12-27</td>
+<td align="right">135</td>
+<td align="right">0</td>
+<td align="right">135</td>
+<td align="right">0</td>
+<td align="right">135</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2020-12-28</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">135</td>
+<td align="right">0</td>
+<td align="right">135</td>
+</tr>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2020-12-29</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">135</td>
+<td align="right">0</td>
+<td align="right">135</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2020-12-30</td>
+<td align="right">7800</td>
+<td align="right">0</td>
+<td align="right">7935</td>
+<td align="right">0</td>
+<td align="right">7935</td>
+</tr>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="left">2020-12-31</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">7935</td>
+<td align="right">0</td>
+<td align="right">7935</td>
+</tr>
+<tr class="even">
+<td align="left">ABR</td>
+<td align="left">2021-01-01</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">7935</td>
+<td align="right">0</td>
+<td align="right">7935</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="some-visualisations" class="section level1">
+<h1>Some Visualisations</h1>
+<p>Then, we can use this data to draw some plots:</p>
+<pre class="r"><code>doses_wide %&gt;%
+  ggplot() + 
+  geom_area(aes(
+    x = data,
+    y = totale_dosi,
+    fill = area
+  ))</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<p>Colors make the plot quite unclear! An improvement would be to use <code>shiny</code> to create some interactive visualisations.</p>
+</div>
+<div id="get-vaccine-data-grouped-by-area" class="section level1">
+<h1>Get Vaccine Data Grouped by Area</h1>
+<p>Let’s use <code>group_by(area)</code> to get cumulative data for each region.</p>
+<pre class="r"><code>doses_wide %&gt;%
+  group_by(area) %&gt;%
+  summarise(
+    totale_pfizer = sum(dosi_pfizer),
+    totale_moderna = sum(dosi_moderna)
+  ) %&gt;%
+  mutate(
+    totale_dosi = totale_pfizer + totale_moderna
+  ) %&gt;%
+  add_row(
+    area = &#39;ITA&#39;,
+    totale_pfizer = sum(.$totale_pfizer),
+    totale_moderna = sum(.$totale_moderna),
+    totale_dosi = sum(.$totale_dosi),
+  ) -&gt; doses_grouped_by_area
+
+doses_grouped_by_area %&gt;% head() %&gt;% knitr::kable()</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">area</th>
+<th align="right">totale_pfizer</th>
+<th align="right">totale_moderna</th>
+<th align="right">totale_dosi</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">ABR</td>
+<td align="right">33870</td>
+<td align="right">1300</td>
+<td align="right">35170</td>
+</tr>
+<tr class="even">
+<td align="left">BAS</td>
+<td align="right">17265</td>
+<td align="right">0</td>
+<td align="right">17265</td>
+</tr>
+<tr class="odd">
+<td align="left">CAL</td>
+<td align="right">48640</td>
+<td align="right">0</td>
+<td align="right">48640</td>
+</tr>
+<tr class="even">
+<td align="left">CAM</td>
+<td align="right">139755</td>
+<td align="right">8200</td>
+<td align="right">147955</td>
+</tr>
+<tr class="odd">
+<td align="left">EMR</td>
+<td align="right">158535</td>
+<td align="right">7400</td>
+<td align="right">165935</td>
+</tr>
+<tr class="even">
+<td align="left">FVG</td>
+<td align="right">44335</td>
+<td align="right">0</td>
+<td align="right">44335</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="get-vaccine-data-for-italy-grouped-by-date" class="section level1">
+<h1>Get Vaccine Data for Italy Grouped by Date</h1>
+<p>We will <code>group+by(data)</code> to obtain how many doses have been delivered in the whole of Italy every day by each supplier:</p>
+<pre class="r"><code>doses_wide %&gt;%
+  group_by(data) %&gt;%
+  summarise(
+    totale_pfizer = sum(dosi_pfizer),
+    totale_moderna = sum(dosi_moderna),
+  ) %&gt;%
+  mutate(
+    totale_dosi_consegnate = totale_pfizer + totale_moderna,
+    totale_dosi = cumsum(totale_dosi_consegnate)
+  ) -&gt; doses_grouped_by_date
+
+doses_grouped_by_date %&gt;% head() %&gt;% knitr::kable()</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">data</th>
+<th align="right">totale_pfizer</th>
+<th align="right">totale_moderna</th>
+<th align="right">totale_dosi_consegnate</th>
+<th align="right">totale_dosi</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">2020-12-27</td>
+<td align="right">9750</td>
+<td align="right">0</td>
+<td align="right">9750</td>
+<td align="right">9750</td>
+</tr>
+<tr class="even">
+<td align="left">2020-12-28</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">9750</td>
+</tr>
+<tr class="odd">
+<td align="left">2020-12-29</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">9750</td>
+</tr>
+<tr class="even">
+<td align="left">2020-12-30</td>
+<td align="right">359775</td>
+<td align="right">0</td>
+<td align="right">359775</td>
+<td align="right">369525</td>
+</tr>
+<tr class="odd">
+<td align="left">2020-12-31</td>
+<td align="right">101400</td>
+<td align="right">0</td>
+<td align="right">101400</td>
+<td align="right">470925</td>
+</tr>
+<tr class="even">
+<td align="left">2021-01-01</td>
+<td align="right">8775</td>
+<td align="right">0</td>
+<td align="right">8775</td>
+<td align="right">479700</td>
+</tr>
+</tbody>
+</table>
+<p>And finally we can plot it:</p>
+<pre class="r"><code>doses_grouped_by_date %&gt;%
+  ggplot(aes(
+   x = data,
+   y = totale_dosi
+  )) +
+  geom_area(fill = &#39;salmon&#39;)</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+<p>This is very basic, but since the post is already somewhat long we will perform some other operations in another blog post.</p>
+</div>

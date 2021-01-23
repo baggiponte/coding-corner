@@ -1,0 +1,224 @@
+---
+title: 'Longer Versus Wider Table Format'
+author: 'Luca Baggi'
+date: '2021-01-23'
+slug: []
+categories: []
+tags: []
+ShowToc: true
+---
+
+Today's goals is to compare readability with long versus wide format of data. Plus, we will fill a date column with missing values in a panel dataset. Let's load the packages we are going to use:
+
+```{r, message = F}
+library(tidyverse)
+
+# set a theme to stay for the rest of the plotting
+library(ggthemes)
+theme_set(theme_fivethirtyeight())
+```
+
+# Load the Data
+
+We will be using COVID-19 vaccination data, which are available at the following [repo](https://github.com/italia/covid19-opendata-vaccini). I also collected and wrangled the data [here](https://github.com/orizzontipolitici/covid19-vaccine-data) for [Orizzonti Politici](https://www.orizzontipolitici.it/).
+
+We proceed by loading the dataset via its url, so that it's updated every time we run the script.
+
+```{r}
+url_doses_delivered_ita <-
+  "https://raw.githubusercontent.com/italia/covid19-opendata-vaccini/master/dati/consegne-vaccini-latest.csv"
+
+read_csv(url_doses_delivered_ita, col_types = cols(area = col_factor())) %>%
+  rename(
+    dosi_consegnate = numero_dosi,
+    data = data_consegna
+  ) %>%
+  relocate(data, .after = 'area') -> doses
+
+doses %>% head() %>% knitr::kable()
+```
+
+Our data has the following columns: `area` indicates the region, `data` when deliveries happened, `fornitore` is the supplier, `dosi_consegnate` how many doses have been delivered.
+
+Now we will perform the same operations on the dataset. Namely, we are going to:
+
+* Create a cumulative sum of doses column for each supplier.
+* Create a cumulative sum of doses
+
+After choosing the most informative or readable one, we are going to create the implicitly missing `data` values for each region.
+
+# Work with Long Format
+
+Data is already in the long format (normally, we would need to use `pivot_longer()` to switch from wide to long format).
+
+First, we will group the data by `area` and `fornitore` to compute the cumulative sum of doses delivered by each supplier in each region. Then, we will only group it by `area` and do the following:
+
+* Fill the missing values of each cumulative sum column with its precedent value.
+* Replace the remaining missing values (i.e., those with precedent value == NA) to 0.
+* Add the column with total cumulative doses delivered in each region by every supplier.
+
+```{r}
+doses %>%
+  group_by(area, fornitore) %>%
+  mutate(
+    # create cumsum for each `fornitore`
+    totale_pfizer = case_when(fornitore != 'Moderna' ~ cumsum(dosi_consegnate)),
+    totale_moderna = case_when(fornitore == 'Moderna' ~ cumsum(dosi_consegnate)),
+  ) %>%
+  group_by(area) %>%
+  # fill missing values with the precedent one
+  fill(totale_pfizer, totale_moderna) %>%
+  mutate(
+    # replace NAs with 0
+    totale_pfizer = coalesce(totale_pfizer, 0),
+    totale_moderna = coalesce(totale_moderna, 0),
+    # create cumsum column
+    totale_dosi = cumsum(dosi_consegnate)
+  ) %>%
+  ungroup() -> doses_long
+
+doses_long %>% head(10) %>% knitr::kable()
+```
+
+# Wide Format
+
+Now, we have to turn `doses` into the wide format. Then we perform the same operations as above, with slightly different steps.
+
+```{r}
+doses %>%
+  # pivot to the wider format
+  pivot_wider(
+    # create new features out of the levels of the following column
+    names_from = fornitore,
+    # values of the new features come from the following column
+    values_from = dosi_consegnate
+  ) %>%
+  # for simplicity, let's rename
+  rename(
+    dosi_pfizer = 'Pfizer/BioNTech',
+    dosi_moderna = 'Moderna'
+  ) %>%
+  group_by(area) %>%
+  mutate(
+    # replce NA with zero
+    dosi_pfizer = coalesce(dosi_pfizer, 0),
+    dosi_moderna = coalesce(dosi_moderna, 0),
+    # create columns with totals
+    totale_pfizer = cumsum(dosi_pfizer),
+    totale_moderna = cumsum(dosi_moderna),
+    totale_dosi = totale_moderna + totale_pfizer
+  ) %>%
+  ungroup() -> doses_wide
+
+doses_wide %>% head(10) %>% knitr::kable()
+```
+
+# Considerations: Long vs Wide
+
+There is not a great deal of difference, but I would say the wide format is more readable as it is more clear which supplier delivered its vaccine doses. We will stick to that.
+
+# Create a grid with missing data for each observations
+
+Now, notice that there are many implicitly missing values. Let's look at Abruzzo (`ABR` area): first deliveries occur on December 27th, 2020, then on the 30th. We want to add a row for each of the missing dates, fill every missing value with 0 and then compute the cumulative sums again.
+
+One note: this would have been simpler to do before evaluating which format we want to use, but at least it will be a useful exercise. Notice that the script I am using for the original repo will be the simpler one and this is just a documentation of the tinkering to find the most elegant way of writing the script.
+
+To create the grid, we will use the tidy version of `expand.grid`:
+
+```{r}
+dates <- expand_grid(
+  data = seq.Date(from = min(doses_wide$data), to = lubridate::today(), by = 'day'),
+  area = forcats::fct_unique(doses_wide$area)
+)
+```
+
+And then we perform a `full_join` to intersect the data:
+
+```{r}
+doses_wide %<>%
+  full_join(dates, by = c('data', 'area')) %>%
+  # reorder dates
+  arrange(area, data) %>%
+  # replace missing vaues
+  mutate(
+    dosi_pfizer = coalesce(dosi_pfizer, 0),
+    dosi_moderna = coalesce(dosi_moderna, 0),
+  ) %>%
+  # fill missing cumulative values with precedent one
+  fill(totale_pfizer, totale_moderna, totale_dosi)
+
+doses_wide %>% head() %>% knitr::kable()
+```
+
+# Some Visualisations
+
+Then, we can use this data to draw some plots:
+
+```{r}
+doses_wide %>%
+  ggplot() + 
+  geom_area(aes(
+    x = data,
+    y = totale_dosi,
+    fill = area
+  ))
+```
+
+Colors make the plot quite unclear! An improvement would be to use `shiny` to create some interactive visualisations.
+
+# Get Vaccine Data Grouped by Area
+
+Let's use `group_by(area)` to get cumulative data for each region.
+
+```{r}
+doses_wide %>%
+  group_by(area) %>%
+  summarise(
+    totale_pfizer = sum(dosi_pfizer),
+    totale_moderna = sum(dosi_moderna)
+  ) %>%
+  mutate(
+    totale_dosi = totale_pfizer + totale_moderna
+  ) %>%
+  add_row(
+    area = 'ITA',
+    totale_pfizer = sum(.$totale_pfizer),
+    totale_moderna = sum(.$totale_moderna),
+    totale_dosi = sum(.$totale_dosi),
+  ) -> doses_grouped_by_area
+
+doses_grouped_by_area %>% head() %>% knitr::kable()
+```
+
+# Get Vaccine Data for Italy Grouped by Date
+
+We will `group_by(data)` to obtain how many doses have been delivered in the whole of Italy every day by each supplier:
+
+```{r}
+doses_wide %>%
+  group_by(data) %>%
+  summarise(
+    totale_pfizer = sum(dosi_pfizer),
+    totale_moderna = sum(dosi_moderna),
+  ) %>%
+  mutate(
+    totale_dosi_consegnate = totale_pfizer + totale_moderna,
+    totale_dosi = cumsum(totale_dosi_consegnate)
+  ) -> doses_grouped_by_date
+
+doses_grouped_by_date %>% head() %>% knitr::kable()
+```
+
+And finally we can plot it:
+
+```{r}
+doses_grouped_by_date %>%
+  ggplot(aes(
+   x = data,
+   y = totale_dosi
+  )) +
+  geom_area(fill = 'salmon')
+```
+
+This is very basic, but since the post is already somewhat long we will perform some other operations in another blog post.
+

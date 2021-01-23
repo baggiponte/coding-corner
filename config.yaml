@@ -1,0 +1,22 @@
+theme: "hugo-PaperMod"
+baseURL: /
+languageCode: en-us
+title: "💻 My Coding Corner"
+
+params:
+  author: 'Luca Baggi'
+  homeInfoParams:
+    Title: >
+      📈 Luca's Coding Corner: A Learning Journal for Data Science 
+    Content: >
+      I am an Economics Graduate Student with a passion for data and
+      I want to document my journey learning data science techniques
+      using this blog. Still updating!
+      
+  socialIcons:
+    - name: twitter
+      url: "https://twitter.com/LucaBaggi1997"
+    - name: linkedin
+      url: "https://www.linkedin.com/in/lucabaggi/"
+    - name: github
+      url: "https://github.com/baggiponte"
