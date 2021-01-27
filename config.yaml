@@ -5,6 +5,7 @@ title: 'My Coding Corner'
 
 params:
   author: Luca Baggi
+
   homeInfoParams:
     Title: >
       📈 Luca’s Coding Corner:
@@ -14,7 +15,19 @@ params:
       I am an Economics Graduate Student with a passion for data
       and I want to document my journey learning data science techniques using this blog.
       Still updating!
+    
+  assets:
+    disableHLJS: true
       
+markup:
+  highlight:
+    # anchorLineNos: true
+    codeFences: true
+    guessSyntax: true
+    lineNos: false
+    # noClasses: false
+    style: monokai
+
   socialIcons:
     - name: twitter
       url: "https://twitter.com/LucaBaggi1997"
