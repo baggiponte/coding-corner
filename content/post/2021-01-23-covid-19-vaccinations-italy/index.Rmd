@@ -100,7 +100,7 @@ Now we can plot some things. Let's start with the daily vaccinations.
 
 ```{r}
 vaccinations_by_date %>%
-  filter(data != last(data)) %>%
+  # filter(data != last(data)) %>% # if data is not fully updated the last day
   ggplot(aes(
     x = data,
   )) +
