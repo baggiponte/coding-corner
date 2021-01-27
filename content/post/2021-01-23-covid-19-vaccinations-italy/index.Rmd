@@ -17,7 +17,11 @@ knitr::opts_chunk$set(cache = TRUE, warning = FALSE, message = FALSE,
 theme_set(theme_minimal())
 ```
 
-Now that we have wrangled the data a bit, we can proceed with some visualisations.
+Now that we have wrangled the data a bit, we can proceed with some visualisations. We want to plot three things:
+
+* How many vaccinations are administered daily.
+* How many doses have been administered so far and their ratio.
+* See how regions perform in terms of doses administered and doses received.
 
 ```{r}
 library(tidyverse)
