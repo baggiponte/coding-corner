@@ -39,9 +39,9 @@ These two datasets are incompatible and we need to:
 # create the grid
 dates_grid <-
   expand_grid(
-    data = seq.Date(
-      from = min(vaccinations_by_area$data), to = max(vaccinations_by_area$data), by = 'day'
-    ),
+    data = seq.Date(from = min(vaccinations_by_area$data),
+                    to = max(vaccinations_by_area$data),
+                    by = 'day'),
     area = forcats::fct_unique(vaccinations_by_area$area)
   )
 
@@ -59,6 +59,8 @@ vaccinations_by_area %>%
   group_by(data) %>%
   summarise(across(!ends_with(c('totale', 'area', 'data')), sum)) -> vaccinations_by_date
 ```
+
+Alternatively, `data = full_seq(vaccinations$data, 1)` would have worked, too!
 
 Now that the two are compatible, we can join them. We shall drop `over80` as the data is not being entered correctly at the moment.
 
@@ -83,7 +85,7 @@ vaccinations_by_date %<>%
   ) %>%
   rename(vaccinati_totale = nuovi_vaccinati_totale)
   
-vaccinations_by_date
+vaccinations_by_date %>% head()
 ```
 
 # Plotting
@@ -92,11 +94,12 @@ Now we can plot some things. Let's start with the daily vaccinations.
 
 ```{r}
 vaccinations_by_date %>%
+  filter(last(data))
   ggplot(aes(
     x = data,
-    y = nuovi_vaccinati
   )) +
-  geom_line() +
+  geom_line(aes(y = prima_dose), col = 'salmon') +
+  geom_line(aes(y = seconda_dose), col = 'navy')
   labs(
     title = 'Doses Injected by Day',
     x = 'Date',
@@ -134,7 +137,7 @@ totals_by_area <- read_csv(
 ) %>%
   select(-NUTS2, -nome)
 
-totals_by_area
+totals_by_area %>% head()
 ```
 
 ```{r}

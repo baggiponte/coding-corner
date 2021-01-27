@@ -21,11 +21,9 @@ params:
       
 markup:
   highlight:
-    # anchorLineNos: true
     codeFences: true
     guessSyntax: true
     lineNos: false
-    # noClasses: false
     style: monokai
 
   socialIcons:
@@ -34,4 +32,4 @@ markup:
     - name: linkedin
       url: "https://www.linkedin.com/in/lucabaggi/"
     - name: github
-      url: "https://github.com/baggiponte/escooters-louisville-with-r"
+      url: "https://github.com/baggiponte/coding-corner"
