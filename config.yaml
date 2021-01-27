@@ -16,15 +16,15 @@ params:
       and I want to document my journey learning data science techniques using this blog.
       Still updating!
     
-  assets:
-    disableHLJS: true
-      
-markup:
-  highlight:
-    codeFences: true
-    guessSyntax: true
-    lineNos: false
-    style: monokai
+#   assets:
+#     disableHLJS: true
+#       
+# markup:
+#   highlight:
+#     codeFences: true
+#     guessSyntax: true
+#     lineNos: false
+#     style: monokai
 
   socialIcons:
     - name: twitter
