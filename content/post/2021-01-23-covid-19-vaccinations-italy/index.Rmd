@@ -2,9 +2,10 @@
 title: 'COVID-19 Vaccinations Data: Some Visualisations for Italy'
 author: 'Luca Baggi'
 date: '2021-01-23'
-slug: 'covid-19-vaccinations-italy'
+slug: 'covid-19-vaccinations-italy-visualisations'
 categories: []
-tags: []
+tags:
+  - covid19
 ShowToc: true
 ---
 

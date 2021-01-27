@@ -42,8 +42,8 @@ Our data has the following columns: `area` indicates the region, `data` when del
 
 Now we will perform the same operations on the dataset. Namely, we are going to:
 
-* Create a cumulative sum of doses column for each supplier.
-* Create a cumulative sum of doses
+-   Create a cumulative sum of doses column for each supplier.
+-   Create a cumulative sum of doses
 
 After choosing the most informative or readable one, we are going to create the implicitly missing `data` values for each region.
 
@@ -53,9 +53,9 @@ Data is already in the long format (normally, we would need to use `pivot_longer
 
 First, we will group the data by `area` and `fornitore` to compute the cumulative sum of doses delivered by each supplier in each region. Then, we will only group it by `area` and do the following:
 
-* Fill the missing values of each cumulative sum column with its precedent value.
-* Replace the remaining missing values (i.e., those with precedent value == NA) to 0.
-* Add the column with total cumulative doses delivered in each region by every supplier.
+-   Fill the missing values of each cumulative sum column with its precedent value.
+-   Replace the remaining missing values (i.e., those with precedent value == NA) to 0.
+-   Add the column with total cumulative doses delivered in each region by every supplier.
 
 ```{r}
 doses %>%
@@ -113,7 +113,7 @@ doses %>%
 doses_wide %>% head(10) %>% knitr::kable()
 ```
 
-# Considerations: Long vs Wide
+## Considerations: Long vs Wide
 
 There is not a great deal of difference, but I would say the wide format is more readable as it is more clear which supplier delivered its vaccine doses. We will stick to that.
 
@@ -221,4 +221,3 @@ doses_grouped_by_date %>%
 ```
 
 This is very basic, but since the post is already somewhat long we will perform some other operations in another blog post.
-
