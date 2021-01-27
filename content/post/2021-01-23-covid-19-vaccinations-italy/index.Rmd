@@ -32,8 +32,8 @@ read_csv(
 
 These two datasets are incompatible and we need to:
 
-* Add missing dates to complete the time series.
-* `group_by(date)` to obtain the time series for Italian data.
+-   Add missing dates to complete the time series.
+-   `group_by(date)` to obtain the time series for Italian data.
 
 ```{r}
 # create the grid
@@ -137,7 +137,6 @@ totals_by_area <- read_csv(
 totals_by_area
 ```
 
-
 ```{r}
 totals_by_area %>%
   filter(area != 'ITA') %>%
@@ -158,4 +157,3 @@ totals_by_area %>%
   )
   
 ```
-

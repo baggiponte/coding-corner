@@ -1,16 +1,17 @@
 ---
-title: 'How Covid-19 Vaccinations are Going in Italy'
-author: Luca Baggi
+title: 'How Are Covid-19 Vaccinations Going On in Italy?'
+author: 'Luca Baggi'
 date: '2021-01-27'
-slug: 'covid-19-vaccinations-italy'
+slug: vis-covid-19-vaccine-italy
 categories: []
 tags:
   - covid19
+ShowToc: true
 ---
 
 This is just a very brief update to see how vaccinations are proceeding. I hope I can further develop this blogpost using `shiny` to make some basic visualisations interactive!
 
-```{r}
+```{r, message=FALSE}
 library(tidyverse)
 
 theme_set(theme_minimal())
