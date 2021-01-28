@@ -21,6 +21,8 @@ ShowToc: true
 <pre class="r"><code>library(tidyverse)
 
 theme_set(theme_minimal())</code></pre>
+<div id="data-wrangling" class="section level1">
+<h1>Data Wrangling</h1>
 <p>Let’s load the data:</p>
 <pre class="r"><code>read_csv(
   &#39;https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/doses_by_date_ita.csv&#39;,
@@ -78,8 +80,9 @@ vaccinations_by_area %&gt;%
   ) %&gt;%
   rename(vaccinati_totale = nuovi_vaccinati_totale) %&gt;%
   select(-popolazione_2020)</code></pre>
-<div id="plotting" class="section level1">
-<h1>Plotting</h1>
+</div>
+<div id="first-vs-second-doses" class="section level1">
+<h1>First vs Second Doses</h1>
 <p>Now we can plot some things. Let’s start with the daily vaccinations.</p>
 <pre class="r"><code>vaccinations_by_date %&gt;%
   # filter(data != last(data)) %&gt;% # if data is not fully updated the last day
@@ -131,6 +134,9 @@ vaccinations_by_area %&gt;%
   scale_y_continuous(labels = scales::percent) +
   theme(legend.position = &#39;bottom&#39;)</code></pre>
 <p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-7-1.png" width="2100" /></p>
+</div>
+<div id="vaccinations-and-doses-injected" class="section level1">
+<h1>Vaccinations and Doses Injected</h1>
 <p>And then see how the total vaccinations compare to the total doses delivered:</p>
 <pre class="r"><code>vaccinations_by_date %&gt;%
   ggplot(aes(
@@ -147,6 +153,7 @@ vaccinations_by_area %&gt;%
   )</code></pre>
 <p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-8-1.png" width="2100" /></p>
 <p>Things I learned: if you put <code>geom_area()</code> last, it will cover everything else.</p>
+<pre><code></code></pre>
 </div>
 <div id="whos-doing-better" class="section level1">
 <h1>Who’s doing better?</h1>
@@ -171,5 +178,5 @@ vaccinations_by_area %&gt;%
     x = NULL,
     y = NULL
   )</code></pre>
-<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-10-1.png" width="2100" /></p>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-12-1.png" width="2100" /></p>
 </div>

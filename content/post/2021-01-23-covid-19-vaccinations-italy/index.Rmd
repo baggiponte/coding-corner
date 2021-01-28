@@ -17,15 +17,17 @@ knitr::opts_chunk$set(cache = TRUE, warning = FALSE, message = FALSE,
 
 Now that we have wrangled the data a bit, we can proceed with some visualisations. We want to plot three things:
 
-* How many vaccinations are administered daily.
-* How many doses have been administered so far and their ratio.
-* See how regions perform in terms of doses administered and doses received.
+-   How many vaccinations are administered daily.
+-   How many doses have been administered so far and their ratio.
+-   See how regions perform in terms of doses administered and doses received.
 
 ```{r}
 library(tidyverse)
 
 theme_set(theme_minimal())
 ```
+
+# Data Wrangling
 
 Let's load the data:
 
@@ -96,7 +98,7 @@ vaccinations_by_date %<>%
   select(-popolazione_2020)
 ```
 
-# Plotting
+# First vs Second Doses
 
 Now we can plot some things. Let's start with the daily vaccinations.
 
@@ -158,6 +160,16 @@ vaccinations_by_date %>%
   theme(legend.position = 'bottom')
 ```
 
+# Vaccinations and Doses Injected
+
+```{r}
+vaccinations %>%
+  group_by(fornitore, data, area) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  arrange(area, data)
+```
+
+
 And then see how the total vaccinations compare to the total doses delivered:
 
 ```{r}
@@ -168,7 +180,6 @@ vaccinations_by_date %>%
   )) +
   geom_area(fill = 'salmon') +
   geom_line(aes(y = vaccinati_totale)) +
-  theme_minimal() +
   labs(
     title = 'Total Doses and Doses Injected Over Time',
     x = 'Date',

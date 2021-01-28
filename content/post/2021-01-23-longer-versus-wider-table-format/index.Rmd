@@ -10,12 +10,18 @@ ShowToc: true
 
 Today's goals is to compare readability with long versus wide format of data. Plus, we will fill a date column with missing values in a panel dataset. Let's load the packages we are going to use:
 
+```{r}
+knitr::opts_chunk$set(cache = TRUE, warning = FALSE, message = FALSE, 
+                      # tidy = "styler", fig.width = 8, fig.height = 5,
+                      echo = TRUE, dpi = 300, cache.lazy = FALSE)
+```
+
 ```{r, message = F}
 library(tidyverse)
 
 # set a theme to stay for the rest of the plotting
 library(ggthemes)
-theme_set(theme_fivethirtyeight())
+theme_set(theme_minimal())
 ```
 
 # Load the Data
@@ -35,7 +41,7 @@ read_csv(url_doses_delivered_ita, col_types = cols(area = col_factor())) %>%
   ) %>%
   relocate(data, .after = 'area') -> doses
 
-doses %>% head() %>% knitr::kable()
+doses %>% head()
 ```
 
 Our data has the following columns: `area` indicates the region, `data` when deliveries happened, `fornitore` is the supplier, `dosi_consegnate` how many doses have been delivered.
@@ -77,7 +83,7 @@ doses %>%
   ) %>%
   ungroup() -> doses_long
 
-doses_long %>% head(10) %>% knitr::kable()
+doses_long %>% head(10)
 ```
 
 # Wide Format
@@ -110,7 +116,7 @@ doses %>%
   ) %>%
   ungroup() -> doses_wide
 
-doses_wide %>% head(10) %>% knitr::kable()
+doses_wide %>% head(10)
 ```
 
 ## Considerations: Long vs Wide
@@ -147,7 +153,7 @@ doses_wide %<>%
   # fill missing cumulative values with precedent one
   fill(totale_pfizer, totale_moderna, totale_dosi)
 
-doses_wide %>% head() %>% knitr::kable()
+doses_wide %>% head()
 ```
 
 # Some Visualisations
@@ -166,7 +172,7 @@ doses_wide %>%
 
 Colors make the plot quite unclear! An improvement would be to use `shiny` to create some interactive visualisations.
 
-# Get Vaccine Data Grouped by Area
+# Vaccine Deliveries Grouped by Area
 
 Let's use `group_by(area)` to get cumulative data for each region.
 
@@ -187,10 +193,10 @@ doses_wide %>%
     totale_dosi = sum(.$totale_dosi),
   ) -> doses_grouped_by_area
 
-doses_grouped_by_area %>% head() %>% knitr::kable()
+doses_grouped_by_area %>% head()
 ```
 
-# Get Vaccine Data for Italy Grouped by Date
+# Vaccine Deliveries Grouped by Date
 
 We will `group_by(data)` to obtain how many doses have been delivered in the whole of Italy every day by each supplier:
 
@@ -206,7 +212,7 @@ doses_wide %>%
     totale_dosi = cumsum(totale_dosi_consegnate)
   ) -> doses_grouped_by_date
 
-doses_grouped_by_date %>% head() %>% knitr::kable()
+doses_grouped_by_date %>% head()
 ```
 
 And finally we can plot it:
