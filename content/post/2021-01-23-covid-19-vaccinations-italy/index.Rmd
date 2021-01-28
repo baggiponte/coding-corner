@@ -94,8 +94,6 @@ vaccinations_by_date %<>%
   ) %>%
   rename(vaccinati_totale = nuovi_vaccinati_totale) %>%
   select(-popolazione_2020)
-  
-vaccinations_by_date %>% head()
 ```
 
 # Plotting
@@ -188,8 +186,6 @@ Let's use some other data to find the region which is performing better.
 read_csv('https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/totals_by_area_ita.csv') %>%
   select(-NUTS2, -nome) %>%
   mutate(area = as.factor(area)) -> totals_by_area
-
-totals_by_area %>% head()
 ```
 
 ```{r}
