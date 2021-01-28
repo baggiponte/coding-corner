@@ -13,8 +13,6 @@ ShowToc: true
 knitr::opts_chunk$set(cache = TRUE, warning = FALSE, message = FALSE, 
                       # tidy = "styler", fig.width = 8, fig.height = 5,
                       echo = TRUE, dpi = 300, cache.lazy = FALSE)
-
-theme_set(theme_minimal())
 ```
 
 Now that we have wrangled the data a bit, we can proceed with some visualisations. We want to plot three things:
@@ -25,6 +23,8 @@ Now that we have wrangled the data a bit, we can proceed with some visualisation
 
 ```{r}
 library(tidyverse)
+
+theme_set(theme_minimal())
 ```
 
 Let's load the data:
@@ -137,7 +137,7 @@ vaccinations_by_date %>%
   theme(legend.position = 'bottom')
 ```
 
-Alternatively:
+Another useful way to compare how doses are being administered is to compare how their share changes over time. We are not working on cumulative quantities, but the daily increase.
 
 ```{r}
 vaccinations_by_date %>%
