@@ -6,6 +6,8 @@ slug: 'covid-19-vaccinations-italy-visualisations'
 categories: []
 tags:
   - covid19
+  - italy
+  - visualisation
 ShowToc: true
 ---
 
@@ -18,9 +20,6 @@ ShowToc: true
 <li>How many doses have been administered so far and their ratio.</li>
 <li>See how regions perform in terms of doses administered and doses received.</li>
 </ul>
-<pre class="r"><code>library(tidyverse)
-
-theme_set(theme_minimal())</code></pre>
 <div id="data-wrangling" class="section level1">
 <h1>Data Wrangling</h1>
 <p>Let’s load the data:</p>
@@ -29,82 +28,54 @@ theme_set(theme_minimal())</code></pre>
 ) -&gt; doses_by_date 
 
 read_csv(
-  &#39;https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/vaccinations_by_area_ita.csv&#39;) %&gt;%
-  mutate(area = as.factor(area)) -&gt; vaccinations_by_area</code></pre>
-<p>These two datasets are incompatible and we need to:</p>
-<ul>
-<li>Add missing dates to complete the time series.</li>
-<li><code>group_by(date)</code> to obtain the time series for Italian data.</li>
-</ul>
-<pre class="r"><code># create the grid
-dates_grid &lt;-
-  expand_grid(
-    data = seq.Date(from = min(vaccinations_by_area$data),
-                    to = max(vaccinations_by_area$data),
-                    by = &#39;day&#39;),
-    area = forcats::fct_unique(vaccinations_by_area$area)
-  )
-
-vaccinations_by_area %&gt;%
-  # perform the join
-  full_join(dates_grid, by = c(&#39;area&#39;, &#39;data&#39;)) %&gt;%
-  # reorder data
-  arrange(area, data) %&gt;%
-  # replace NA with 0
-  mutate(across(!ends_with(c(&#39;totale&#39;, &#39;data&#39;, &#39;area&#39;)), ~ coalesce(.x, 0))) %&gt;%
-  # fill cumsum columns with precedent value
-  # actually unneeded because we will be summarising
-  fill(ends_with(&#39;totale&#39;)) %&gt;%
-  # group by data
-  group_by(data) %&gt;%
-  summarise(across(!ends_with(c(&#39;totale&#39;, &#39;area&#39;, &#39;data&#39;)), sum)) -&gt; vaccinations_by_date</code></pre>
-<p>Alternatively, <code>data = full_seq(vaccinations$data, 1)</code> would have worked, too!</p>
-<p>Now that the two are compatible, we can join them. We shall drop <code>over80</code> as the data is not being entered correctly at the moment.</p>
-<pre class="r"><code>vaccinations_by_date %&lt;&gt;%
-  select(-over80) %&gt;%
-  inner_join(doses_by_date) %&gt;%
+  &#39;https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/vaccinations_by_area_ita.csv&#39;, col_types = cols(area = col_factor()) ) -&gt; vaccinations_by_area</code></pre>
+<p>These two datasets are incompatible: first, data grouped by area needs to be grouped to the Italian level. Then, we need to transform deliveries data into the long format.</p>
+<p>Let’s start with grouping vaccination data. Columns beyond the twelfth are not needed: basically, they are the sum of the doses injected each day… which is exactly what we will be computing within <code>summarise()</code>!</p>
+<pre class="r"><code>vaccinations_by_area %&gt;%
+  # the other columns are the same as the summarised one
+  select(1:12) %&gt;%
+  group_by(data, fornitore) %&gt;%
+  summarise(across(where(is.numeric), sum)) -&gt; vaccinations_by_date</code></pre>
+<p>Then, let’s move to vaccine data. This seems a bit more challenging at first, as we need to pack the two columns with the total deliveries of each supplier into a single one. <code>pivot_longer()</code> comes to rescue!</p>
+<pre class="r"><code>doses_by_date %&gt;%
+  # we will just need data and the two supplier cols
+  select(-totale_dosi_consegnate, -totale_dosi) %&gt;%
+  # to get prettier names into the new column
   rename(
-    consegne_pfizer = totale_pfizer,
-    consegne_moderna = totale_moderna,
-    consegne_totale = totale_dosi_consegnate,
-    dosi_totale = totale_dosi
+    &#39;Pfizer/BioNTech&#39; = totale_pfizer,
+    Moderna = totale_moderna
   ) %&gt;%
-  mutate(
-    # create cumulative columns
-    across(2:9, list(totale = cumsum)),
-    # let&#39;s add population data
-    popolazione_2020 = 59641488,
-    dosi_percento = round(dosi_totale / popolazione_2020 * 1000, digits = 2),
-    vaccinazioni_percento = round(nuovi_vaccinati_totale / popolazione_2020 * 1000, digits = 2),
-    dosi_usate_percento = round(nuovi_vaccinati_totale / dosi_totale * 100, digits = 2)
-  ) %&gt;%
-  rename(vaccinati_totale = nuovi_vaccinati_totale) %&gt;%
-  select(-popolazione_2020)</code></pre>
+  # pivot longer magic:
+  pivot_longer(c(&#39;Pfizer/BioNTech&#39;, Moderna),
+               # will have values Pfizer/BioNTech and Moderna
+               names_to = &#39;fornitore&#39;,
+               # will report the deliveries of the day
+               values_to = &#39;consegne&#39;) %&gt;%
+  # we need to add cumulative doses available at each date
+  group_by(fornitore) %&gt;%
+  mutate(dosi_totali = cumsum(consegne)) -&gt; doses_by_date_long</code></pre>
 </div>
-<div id="first-vs-second-doses" class="section level1">
-<h1>First vs Second Doses</h1>
-<p>Now we can plot some things. Let’s start with the daily vaccinations.</p>
+<div id="some-visualisations" class="section level1">
+<h1>Some Visualisations</h1>
+<p>Now that the two are compatible, we could join them. However, given the structure of the data, we’d better create two new separate tables: for instance, since we cannot observe to who the first and second shots are administered, we can create a new table with this info only.</p>
 <pre class="r"><code>vaccinations_by_date %&gt;%
-  # filter(data != last(data)) %&gt;% # if data is not fully updated the last day
-  ggplot(aes(
-    x = data,
-  )) +
-  geom_line(aes(y = prima_dose), col = &#39;salmon&#39;) +
-  geom_line(aes(y = seconda_dose), col = &#39;navy&#39;) +
-  labs(
-    title = &#39;Doses Injected by Day&#39;,
-    subtitle = &#39;Red is first doses, blue is second doses&#39;,
-    x = &#39;Date&#39;,
-    y = NULL
-  )</code></pre>
-<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-5-1.png" width="2100" /></p>
-<p>Let’s plot the cumulative data.</p>
-<pre class="r"><code>vaccinations_by_date %&gt;%
-  select(data, prima_dose, seconda_dose) %&gt;%
-  mutate(across(-data, cumsum)) %&gt;%
-  pivot_longer(!data, names_to = &#39;dose&#39;, values_to = &#39;numero&#39;) %&gt;%
-  mutate(dose = fct_relevel(dose, &#39;seconda_dose&#39;, .after = &#39;prima_dose&#39;)) %&gt;%
-  ggplot(aes(data, numero, fill = dose)) +
+  select(data, fornitore, prima_dose, seconda_dose) %&gt;%
+  pivot_longer(cols = !c(data, fornitore),
+               names_to = &#39;dose&#39;,
+               values_to = &#39;count&#39;) %&gt;%
+  group_by(fornitore, dose) %&gt;%
+  mutate(
+    total_count = cumsum(count)
+  ) -&gt; vaccinations_long</code></pre>
+<div id="cumulative-vaccinations-data" class="section level2">
+<h2>Cumulative Vaccinations Data</h2>
+<p>Vaccines from Moderna are so few right now that we might as well group by it. In the future, comparing how shots are administered by each supplier would bear greater value.</p>
+<pre class="r"><code>vaccinations_long %&gt;%
+  group_by(data, dose) %&gt;%
+  summarise(across(where(is.numeric), sum)) %&gt;%
+  # swap the order of the factor
+  mutate(dose = fct_rev(dose)) %&gt;%
+  ggplot(aes(data, total_count, fill = dose)) +
   geom_area() +
   scale_fill_viridis_d(begin = 0.95, end = 0.55) +
   labs(
@@ -115,52 +86,149 @@ vaccinations_by_area %&gt;%
     fill = NULL
   ) +
   theme(legend.position = &#39;bottom&#39;)</code></pre>
-<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-6-1.png" width="2100" /></p>
-<p>Another useful way to compare how doses are being administered is to compare how their share changes over time. We are not working on cumulative quantities, but the daily increase.</p>
-<pre class="r"><code>vaccinations_by_date %&gt;%
-  select(data, prima_dose, seconda_dose) %&gt;%
-  mutate(across(-data, ~ .x / (prima_dose + seconda_dose))) %&gt;%
-  pivot_longer(!data, names_to = &#39;dose&#39;, values_to = &#39;pct&#39;) %&gt;%
-  mutate(dose = fct_relevel(dose, &#39;seconda_dose&#39;, .after = &#39;prima_dose&#39;)) %&gt;%
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-2-1.png" width="2100" />
+We can also show it as a percentage: it’s a bit more complicated since we have to move from wider to create the new percentage columns and then back to longer for plotting.</p>
+<pre class="r"><code>vaccinations_long %&gt;%
+  group_by(data, dose) %&gt;%
+  summarise(across(where(is.numeric), sum)) %&gt;%
+  # pivot back to wider to create new columns
+  pivot_wider(
+    !total_count,
+    names_from = dose,
+    values_from = c(count)
+  ) %&gt;%
+  # take out redundant text from column names
+  rename_with( ~ stringr::str_remove(.x, c(&#39;count_&#39;))) %&gt;%
+  mutate(across(
+    # apply it to these cols  
+    c(prima_dose, seconda_dose),
+    # replace with
+    ~ .x / (prima_dose + seconda_dose)
+  )) %&gt;%
+  # pivot to longer
+  pivot_longer(
+    # don&#39;t use data
+    !data,
+    # names and values
+    names_to = &#39;dose&#39;,
+    values_to = &#39;pct&#39;
+  ) %&gt;%
   ggplot(aes(data, pct, fill = dose)) +
   geom_area() +
-  scale_fill_viridis_d(begin = 0.95, end = 0.55) +
+  scale_fill_viridis_d(begin = 0.55, end = 0.95) +
   labs(
-    title = &#39;% of First Doses v. Second Doses in Italy&#39;,
+    title = &#39;Vaccinations in Italy&#39;,
+    subtitle = &#39;Cumulative First and Second Doses Administered&#39;,
     x = NULL,
     y = NULL,
     fill = NULL
   ) +
   scale_y_continuous(labels = scales::percent) +
   theme(legend.position = &#39;bottom&#39;)</code></pre>
-<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-7-1.png" width="2100" /></p>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-3-1.png" width="2100" /></p>
 </div>
-<div id="vaccinations-and-doses-injected" class="section level1">
-<h1>Vaccinations and Doses Injected</h1>
-<p>And then see how the total vaccinations compare to the total doses delivered:</p>
-<pre class="r"><code>vaccinations_by_date %&gt;%
-  ggplot(aes(
-   x = data,
-   y = dosi_totale
-  )) +
-  geom_area(fill = &#39;salmon&#39;) +
-  geom_line(aes(y = vaccinati_totale)) +
-  theme_minimal() +
+<div id="daily-vaccinations-data" class="section level2">
+<h2>Daily Vaccinations Data</h2>
+<p>We can also plot a line with daily shots (again, data is grouped by <code>fornitore</code>):</p>
+<pre class="r"><code>vaccinations_long %&gt;%
+  group_by(data, dose) %&gt;%
+  summarise(across(where(is.numeric), sum)) %&gt;%
+  ungroup() %&gt;%
+  ggplot(aes(data, count, col = dose)) +
+  geom_line() +
+  # `begin` and `end` are swapped as factors are not swapped as in the graph above
+  scale_color_viridis_d(begin = 0.55, end = 0.95) +
   labs(
-    title = &#39;Total Doses and Doses Injected Over Time&#39;,
-    x = &#39;Date&#39;,
-    y = NULL
-  )</code></pre>
+    title = &#39;Vaccinations in Italy&#39;,
+    subtitle = &#39;First and Second Doses Administered&#39;,
+    x = NULL,
+    y = NULL,
+    color = NULL
+  ) +
+  theme(legend.position = &#39;bottom&#39;)</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-4-1.png" width="2100" /></p>
+</div>
+<div id="putting-these-together" class="section level2">
+<h2>Putting these together</h2>
+<p>We will be using a call to <code>ggpubr::ggarrange()</code>:</p>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-5-1.png" width="2100" /></p>
+</div>
+</div>
+<div id="to-whom-doses-are-administered-to" class="section level1">
+<h1>To whom doses are administered to?</h1>
+<p>Let’s use vaccinations data to see how shots are distributed.</p>
+<div id="at-the-national-level" class="section level2">
+<h2>At the National Level</h2>
+<pre class="r"><code>vaccinations_by_area %&gt;%
+  group_by(data) %&gt;%
+  summarise(across(where(is.numeric), sum)) %&gt;%
+  select(data, sesso_maschile, sesso_femminile) %&gt;%
+  pivot_longer(!data, names_to = &#39;sesso&#39;, values_to = &#39;count&#39;) %&gt;%
+  ggplot(aes(data, count, fill = sesso)) +
+  geom_col() +
+  labs(
+    title = &#39;Vaccinations by Sex in Italy&#39;,
+    subtitle = &#39;Blue is male, red is female&#39;,
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  theme(legend.position = &#39;none&#39;)</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-6-1.png" width="2100" /></p>
+<p>Let’s see it as percentage:</p>
+<pre class="r"><code>vaccinations_by_area %&gt;%
+  # we are not interested in the supplier 
+  group_by(data) %&gt;%
+  summarise(across(where(is.numeric), sum)) %&gt;%
+  select(data, sesso_maschile, sesso_femminile) %&gt;% 
+  mutate(
+    # transform into percentage
+    across(c(sesso_femminile, sesso_maschile), ~ .x / (sesso_maschile + sesso_femminile)),
+    # replace NAs with 0
+    across(where(is.numeric), ~ coalesce(.x, 0L))
+  ) %&gt;%
+  pivot_longer(!data, names_to = &#39;sesso&#39;, values_to = &#39;count&#39;) %&gt;%
+  ggplot(aes(data, count, fill = sesso)) +
+  geom_col() +
+  labs(
+    title = &#39;Vaccinations by Sex, per Area&#39;,
+    subtitle = &#39;Blue is male, red is female&#39;,
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  scale_y_continuous(labels = scales::percent) +
+  theme(legend.position = &#39;none&#39;)</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-7-1.png" width="2100" /></p>
+<p>At the national level, more women are being vaccinated than men. This may also be due to more of them being health workers.</p>
+<div id="faceting" class="section level3">
+<h3>Faceting</h3>
+<p>We exploit the extra <code>area</code> information to see these proportions at the local level. Given the high number of regions, it’s won’t look pretty, at all! I shall get back to this with <code>shiny</code>, soon.</p>
+<pre class="r"><code>vaccinations_by_area %&gt;%
+  select(data, area, sesso_maschile, sesso_femminile) %&gt;%
+  pivot_longer(!c(data, area), names_to = &#39;sesso&#39;, values_to = &#39;count&#39;) %&gt;%
+  ggplot(aes(data, count, fill = sesso)) +
+  geom_col() +
+  facet_wrap(~ area, nrow = 6) +
+  labs(
+    title = &#39;Vaccinations by Sex, per Area&#39;,
+    subtitle = &#39;Blue is male, red is female&#39;,
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  theme(legend.position = &#39;none&#39;)</code></pre>
 <p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-8-1.png" width="2100" /></p>
-<p>Things I learned: if you put <code>geom_area()</code> last, it will cover everything else.</p>
-<pre><code></code></pre>
+</div>
+</div>
 </div>
 <div id="whos-doing-better" class="section level1">
 <h1>Who’s doing better?</h1>
-<p>Let’s use some other data to find the region which is performing better.</p>
+<p>Let’s use some other data to find the region which is performing better. Let’s load the data:</p>
 <pre class="r"><code>read_csv(&#39;https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/totals_by_area_ita.csv&#39;) %&gt;%
   select(-NUTS2, -nome) %&gt;%
   mutate(area = as.factor(area)) -&gt; totals_by_area</code></pre>
+<p>And then make a plot:</p>
 <pre class="r"><code>totals_by_area %&gt;%
   filter(area != &#39;ITA&#39;) %&gt;%
   ggplot(aes(
@@ -169,7 +237,8 @@ vaccinations_by_area %&gt;%
   )) +
   geom_vline(xintercept = mean(totals_by_area$dosi_ogni_mille), color = &#39;grey&#39;) +
   geom_hline(yintercept = mean(totals_by_area$vaccinati_ogni_mille), color = &#39;grey&#39;) +
-  geom_text(aes(label = area)) +
+  geom_point() +
+  ggrepel::geom_text_repel(aes(label = area)) +
   # xlim(0,100) +
   # ylim(0,100) +
   labs(
@@ -178,5 +247,5 @@ vaccinations_by_area %&gt;%
     x = NULL,
     y = NULL
   )</code></pre>
-<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-12-1.png" width="2100" /></p>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-10-1.png" width="2100" /></p>
 </div>

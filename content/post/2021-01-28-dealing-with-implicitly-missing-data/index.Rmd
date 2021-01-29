@@ -2,18 +2,19 @@
 title: Dealing With Implicit Missing Data
 author: Luca Baggi
 date: '2021-01-28'
-slug: dealing-with-implicitly-missing-data
+slug: dealing-with-implicit-missing-data
 categories:
 tags:
   - covid19
-  - wrangling
+  - italy
   - visualisation
+  - wrangling
 ShowToc: True
 ---
 
 Today I want to test some ways to deal with implicit missing values: namely, creating grids with several commands and performing full joins on our data. Let's use again COVID-19 vaccinations data in Italy, available from the official [repo](https://github.com/italia/covid19-opendata-vaccini/blob/master/dati/somministrazioni-vaccini-latest.csv).
 
-```{r, include=FALSE}
+```{r chunk-options, include=FALSE}
 knitr::opts_chunk$set(cache = TRUE, warning = FALSE, message = FALSE, 
                       # tidy = "styler", fig.width = 8, fig.height = 5,
                       echo = TRUE, dpi = 300, cache.lazy = FALSE)
@@ -23,7 +24,7 @@ library(tidyverse)
 
 # Load Data
 
-```{r}
+```{r load-data}
 url_vaccinations <-
   'https://raw.githubusercontent.com/italia/covid19-opendata-vaccini/master/dati/somministrazioni-vaccini-latest.csv'
 
@@ -72,7 +73,10 @@ The same can be achieved in this way:
 
 ```{r}
 vaccinations %>%
-  expand(data, area, fornitore, fascia_anagrafica) %>% head()
+  expand(
+    # create a full sequence between the first and last date
+    full_seq(data, 1),
+    area, fornitore, fascia_anagrafica)
 ```
 
 Much neater, uh? Still, there are very many values and once the data gets larger it will take some more time.
@@ -91,7 +95,7 @@ vaccinations %>%
 vaccinations_ita %>% head(10)
 ```
 
-This is a very great deal of observations, and as of `r Sys.Date` there are more missing values than complete ones. This is because Moderna started deliveries more than two weeks later than Pfizer/BioNTech (as the European Center for Disease Prevention and Control approved the vaccine later) and there were also some days between the start of the campaign and approximately January 10th where no vaccines administered.
+This is a very great deal of observations, and as of this day there are more missing values than complete ones. This is because Moderna started deliveries more than two weeks later than Pfizer/BioNTech (as the European Center for Disease Prevention and Control approved the vaccine later) and there were also some days between the start of the campaign and approximately January 10th where no vaccines administered.
 
 Now we want to create some smaller datasets to be able to streamline visualisations later.
 

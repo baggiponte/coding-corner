@@ -6,13 +6,18 @@ slug: 'covid-19-vaccinations-italy-visualisations'
 categories: []
 tags:
   - covid19
+  - italy
+  - visualisation
 ShowToc: true
 ---
 
-```{r setup, include=FALSE}
+```{r chunks, include=FALSE}
 knitr::opts_chunk$set(cache = TRUE, warning = FALSE, message = FALSE, 
                       # tidy = "styler", fig.width = 8, fig.height = 5,
                       echo = TRUE, dpi = 300, cache.lazy = FALSE)
+
+library(tidyverse)
+theme_set(theme_minimal())
 ```
 
 Now that we have wrangled the data a bit, we can proceed with some visualisations. We want to plot three things:
@@ -21,112 +26,80 @@ Now that we have wrangled the data a bit, we can proceed with some visualisation
 -   How many doses have been administered so far and their ratio.
 -   See how regions perform in terms of doses administered and doses received.
 
-```{r}
-library(tidyverse)
-
-theme_set(theme_minimal())
-```
-
 # Data Wrangling
 
 Let's load the data:
 
-```{r}
+```{r data}
 read_csv(
   'https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/doses_by_date_ita.csv',
 ) -> doses_by_date 
 
 read_csv(
-  'https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/vaccinations_by_area_ita.csv') %>%
-  mutate(area = as.factor(area)) -> vaccinations_by_area
+  'https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/vaccinations_by_area_ita.csv', col_types = cols(area = col_factor()) ) -> vaccinations_by_area
 ```
 
-These two datasets are incompatible and we need to:
+These two datasets are incompatible: first, data grouped by area needs to be grouped to the Italian level. Then, we need to transform deliveries data into the long format.
 
--   Add missing dates to complete the time series.
--   `group_by(date)` to obtain the time series for Italian data.
+Let's start with grouping vaccination data. Columns beyond the twelfth are not needed: basically, they are the sum of the doses injected each day... which is exactly what we will be computing within `summarise()`!
 
-```{r}
-# create the grid
-dates_grid <-
-  expand_grid(
-    data = seq.Date(from = min(vaccinations_by_area$data),
-                    to = max(vaccinations_by_area$data),
-                    by = 'day'),
-    area = forcats::fct_unique(vaccinations_by_area$area)
-  )
-
+```{r vaccinations_by_date}
 vaccinations_by_area %>%
-  # perform the join
-  full_join(dates_grid, by = c('area', 'data')) %>%
-  # reorder data
-  arrange(area, data) %>%
-  # replace NA with 0
-  mutate(across(!ends_with(c('totale', 'data', 'area')), ~ coalesce(.x, 0))) %>%
-  # fill cumsum columns with precedent value
-  # actually unneeded because we will be summarising
-  fill(ends_with('totale')) %>%
-  # group by data
-  group_by(data) %>%
-  summarise(across(!ends_with(c('totale', 'area', 'data')), sum)) -> vaccinations_by_date
+  # the other columns are the same as the summarised one
+  select(1:12) %>%
+  group_by(data, fornitore) %>%
+  summarise(across(where(is.numeric), sum)) -> vaccinations_by_date
 ```
 
-Alternatively, `data = full_seq(vaccinations$data, 1)` would have worked, too!
+Then, let's move to vaccine data. This seems a bit more challenging at first, as we need to pack the two columns with the total deliveries of each supplier into a single one. `pivot_longer()` comes to rescue!
 
-Now that the two are compatible, we can join them. We shall drop `over80` as the data is not being entered correctly at the moment.
-
-```{r, message=FALSE}
-vaccinations_by_date %<>%
-  select(-over80) %>%
-  inner_join(doses_by_date) %>%
+```{r doses_long}
+doses_by_date %>%
+  # we will just need data and the two supplier cols
+  select(-totale_dosi_consegnate, -totale_dosi) %>%
+  # to get prettier names into the new column
   rename(
-    consegne_pfizer = totale_pfizer,
-    consegne_moderna = totale_moderna,
-    consegne_totale = totale_dosi_consegnate,
-    dosi_totale = totale_dosi
+    'Pfizer/BioNTech' = totale_pfizer,
+    Moderna = totale_moderna
   ) %>%
+  # pivot longer magic:
+  pivot_longer(c('Pfizer/BioNTech', Moderna),
+               # will have values Pfizer/BioNTech and Moderna
+               names_to = 'fornitore',
+               # will report the deliveries of the day
+               values_to = 'consegne') %>%
+  # we need to add cumulative doses available at each date
+  group_by(fornitore) %>%
+  mutate(dosi_totali = cumsum(consegne)) -> doses_by_date_long
+```
+
+# Some Visualisations
+
+Now that the two are compatible, we could join them. However, given the structure of the data, we'd better create two new separate tables: for instance, since we cannot observe to who the first and second shots are administered, we can create a new table with this info only.
+
+```{r}
+vaccinations_by_date %>%
+  select(data, fornitore, prima_dose, seconda_dose) %>%
+  pivot_longer(cols = !c(data, fornitore),
+               names_to = 'dose',
+               values_to = 'count') %>%
+  group_by(fornitore, dose) %>%
   mutate(
-    # create cumulative columns
-    across(2:9, list(totale = cumsum)),
-    # let's add population data
-    popolazione_2020 = 59641488,
-    dosi_percento = round(dosi_totale / popolazione_2020 * 1000, digits = 2),
-    vaccinazioni_percento = round(nuovi_vaccinati_totale / popolazione_2020 * 1000, digits = 2),
-    dosi_usate_percento = round(nuovi_vaccinati_totale / dosi_totale * 100, digits = 2)
-  ) %>%
-  rename(vaccinati_totale = nuovi_vaccinati_totale) %>%
-  select(-popolazione_2020)
+    total_count = cumsum(count)
+  ) -> vaccinations_long
 ```
 
-# First vs Second Doses
+## Cumulative Vaccinations Data
 
-Now we can plot some things. Let's start with the daily vaccinations.
-
-```{r}
-vaccinations_by_date %>%
-  # filter(data != last(data)) %>% # if data is not fully updated the last day
-  ggplot(aes(
-    x = data,
-  )) +
-  geom_line(aes(y = prima_dose), col = 'salmon') +
-  geom_line(aes(y = seconda_dose), col = 'navy') +
-  labs(
-    title = 'Doses Injected by Day',
-    subtitle = 'Red is first doses, blue is second doses',
-    x = 'Date',
-    y = NULL
-  )
-```
-
-Let's plot the cumulative data.
+Vaccines from Moderna are so few right now that we might as well group by it. In the future, comparing how shots are administered by each supplier would bear greater value.
 
 ```{r}
-vaccinations_by_date %>%
-  select(data, prima_dose, seconda_dose) %>%
-  mutate(across(-data, cumsum)) %>%
-  pivot_longer(!data, names_to = 'dose', values_to = 'numero') %>%
-  mutate(dose = fct_relevel(dose, 'seconda_dose', .after = 'prima_dose')) %>%
-  ggplot(aes(data, numero, fill = dose)) +
+vaccinations_long %>%
+  group_by(data, dose) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  # swap the order of the factor
+  mutate(dose = fct_rev(dose)) %>%
+  ggplot(aes(data, total_count, fill = dose)) +
   geom_area() +
   scale_fill_viridis_d(begin = 0.95, end = 0.55) +
   labs(
@@ -138,20 +111,40 @@ vaccinations_by_date %>%
   ) +
   theme(legend.position = 'bottom')
 ```
-
-Another useful way to compare how doses are being administered is to compare how their share changes over time. We are not working on cumulative quantities, but the daily increase.
+We can also show it as a percentage: it's a bit more complicated since we have to move from wider to create the new percentage columns and then back to longer for plotting.
 
 ```{r}
-vaccinations_by_date %>%
-  select(data, prima_dose, seconda_dose) %>%
-  mutate(across(-data, ~ .x / (prima_dose + seconda_dose))) %>%
-  pivot_longer(!data, names_to = 'dose', values_to = 'pct') %>%
-  mutate(dose = fct_relevel(dose, 'seconda_dose', .after = 'prima_dose')) %>%
+vaccinations_long %>%
+  group_by(data, dose) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  # pivot back to wider to create new columns
+  pivot_wider(
+    !total_count,
+    names_from = dose,
+    values_from = c(count)
+  ) %>%
+  # take out redundant text from column names
+  rename_with( ~ stringr::str_remove(.x, c('count_'))) %>%
+  mutate(across(
+    # apply it to these cols  
+    c(prima_dose, seconda_dose),
+    # replace with
+    ~ .x / (prima_dose + seconda_dose)
+  )) %>%
+  # pivot to longer
+  pivot_longer(
+    # don't use data
+    !data,
+    # names and values
+    names_to = 'dose',
+    values_to = 'pct'
+  ) %>%
   ggplot(aes(data, pct, fill = dose)) +
   geom_area() +
-  scale_fill_viridis_d(begin = 0.95, end = 0.55) +
+  scale_fill_viridis_d(begin = 0.55, end = 0.95) +
   labs(
-    title = '% of First Doses v. Second Doses in Italy',
+    title = 'Vaccinations in Italy',
+    subtitle = 'Cumulative First and Second Doses Administered',
     x = NULL,
     y = NULL,
     fill = NULL
@@ -160,44 +153,178 @@ vaccinations_by_date %>%
   theme(legend.position = 'bottom')
 ```
 
-# Vaccinations and Doses Injected
+## Daily Vaccinations Data
+
+We can also plot a line with daily shots (again, data is grouped by `fornitore`):
 
 ```{r}
-vaccinations %>%
-  group_by(fornitore, data, area) %>%
+vaccinations_long %>%
+  group_by(data, dose) %>%
   summarise(across(where(is.numeric), sum)) %>%
-  arrange(area, data)
+  ungroup() %>%
+  ggplot(aes(data, count, col = dose)) +
+  geom_line() +
+  # `begin` and `end` are swapped as factors are not swapped as in the graph above
+  scale_color_viridis_d(begin = 0.55, end = 0.95) +
+  labs(
+    title = 'Vaccinations in Italy',
+    subtitle = 'First and Second Doses Administered',
+    x = NULL,
+    y = NULL,
+    color = NULL
+  ) +
+  theme(legend.position = 'bottom')
 ```
 
+## Putting these together
 
-And then see how the total vaccinations compare to the total doses delivered:
+We will be using a call to `ggpubr::ggarrange()`:
+
+```{r, echo=FALSE}
+p1 <- vaccinations_long %>%
+  group_by(data, dose) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  # swap the order of the factor
+  mutate(dose = fct_rev(dose)) %>%
+  ggplot(aes(data, total_count, fill = dose)) +
+  geom_area() +
+  scale_fill_viridis_d(begin = 0.95, end = 0.55) +
+  labs(
+    title = 'Vaccinations in Italy',
+    subtitle = 'Total doses injected, by number of shot',
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  theme(legend.position = 'none')
+
+p2 <- vaccinations_long %>%
+  group_by(data, dose) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  # pivot back to wider to create new columns
+  pivot_wider(
+    !total_count,
+    names_from = dose,
+    values_from = c(count)
+  ) %>%
+  # take out redundant text from column names
+  rename_with( ~ stringr::str_remove(.x, c('count_'))) %>%
+  mutate(across(
+    # apply it to these cols  
+    c(prima_dose, seconda_dose),
+    # replace with
+    ~ .x / (prima_dose + seconda_dose)
+  )) %>%
+  # pivot to longer
+  pivot_longer(
+    # don't use data
+    !data,
+    # names and values
+    names_to = 'dose',
+    values_to = 'pct'
+  ) %>%
+  ggplot(aes(data, pct, fill = dose)) +
+  geom_area() +
+  scale_fill_viridis_d(begin = 0.55, end = 0.95) +
+  labs(
+    title = NULL,
+    subtitle = 'Percentage of first and second shot injected, each day',
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  scale_y_continuous(labels = scales::percent) +
+  theme(legend.position = 'bottom')
+
+ggpubr::ggarrange(p1, p2, nrow = 2)
+```
+
+# To whom doses are administered to?
+
+Let's use vaccinations data to see how shots are distributed.
+
+## At the National Level
 
 ```{r}
-vaccinations_by_date %>%
-  ggplot(aes(
-   x = data,
-   y = dosi_totale
-  )) +
-  geom_area(fill = 'salmon') +
-  geom_line(aes(y = vaccinati_totale)) +
+vaccinations_by_area %>%
+  group_by(data) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  select(data, sesso_maschile, sesso_femminile) %>%
+  pivot_longer(!data, names_to = 'sesso', values_to = 'count') %>%
+  ggplot(aes(data, count, fill = sesso)) +
+  geom_col() +
   labs(
-    title = 'Total Doses and Doses Injected Over Time',
-    x = 'Date',
-    y = NULL
-  )
+    title = 'Vaccinations by Sex in Italy',
+    subtitle = 'Blue is male, red is female',
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  theme(legend.position = 'none')
 ```
 
-Things I learned: if you put `geom_area()` last, it will cover everything else.
+Let's see it as percentage:
+
+```{r}
+vaccinations_by_area %>%
+  # we are not interested in the supplier 
+  group_by(data) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  select(data, sesso_maschile, sesso_femminile) %>% 
+  mutate(
+    # transform into percentage
+    across(c(sesso_femminile, sesso_maschile), ~ .x / (sesso_maschile + sesso_femminile)),
+    # replace NAs with 0
+    across(where(is.numeric), ~ coalesce(.x, 0L))
+  ) %>%
+  pivot_longer(!data, names_to = 'sesso', values_to = 'count') %>%
+  ggplot(aes(data, count, fill = sesso)) +
+  geom_col() +
+  labs(
+    title = 'Vaccinations by Sex, per Area',
+    subtitle = 'Blue is male, red is female',
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  scale_y_continuous(labels = scales::percent) +
+  theme(legend.position = 'none')
+```
+
+At the national level, more women are being vaccinated than men. This may also be due to more of them being health workers.
+
+### Faceting
+
+We exploit the extra `area` information to see these proportions at the local level. Given the high number of regions, it's won't look pretty, at all! I shall get back to this with `shiny`, soon.
+
+```{r}
+vaccinations_by_area %>%
+  select(data, area, sesso_maschile, sesso_femminile) %>%
+  pivot_longer(!c(data, area), names_to = 'sesso', values_to = 'count') %>%
+  ggplot(aes(data, count, fill = sesso)) +
+  geom_col() +
+  facet_wrap(~ area, nrow = 6) +
+  labs(
+    title = 'Vaccinations by Sex, per Area',
+    subtitle = 'Blue is male, red is female',
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  theme(legend.position = 'none')
+```
 
 # Who's doing better?
 
-Let's use some other data to find the region which is performing better.
+Let's use some other data to find the region which is performing better. Let's load the data:
 
 ```{r}
 read_csv('https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/totals_by_area_ita.csv') %>%
   select(-NUTS2, -nome) %>%
   mutate(area = as.factor(area)) -> totals_by_area
 ```
+
+And then make a plot:
 
 ```{r}
 totals_by_area %>%
@@ -208,7 +335,8 @@ totals_by_area %>%
   )) +
   geom_vline(xintercept = mean(totals_by_area$dosi_ogni_mille), color = 'grey') +
   geom_hline(yintercept = mean(totals_by_area$vaccinati_ogni_mille), color = 'grey') +
-  geom_text(aes(label = area)) +
+  geom_point() +
+  ggrepel::geom_text_repel(aes(label = area)) +
   # xlim(0,100) +
   # ylim(0,100) +
   labs(
