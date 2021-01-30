@@ -30,7 +30,7 @@ Now that we have wrangled the data a bit, we can proceed with some visualisation
 
 Let's load the data:
 
-```{r data}
+```{r data, message=FALSE}
 read_csv(
   'https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/doses_by_date_ita.csv',
 ) -> doses_by_date 
@@ -43,7 +43,7 @@ These two datasets are incompatible: first, data grouped by area needs to be gro
 
 Let's start with grouping vaccination data. Columns beyond the twelfth are not needed: basically, they are the sum of the doses injected each day... which is exactly what we will be computing within `summarise()`!
 
-```{r vaccinations_by_date}
+```{r vaccinations_by_date, message=FALSE}
 vaccinations_by_area %>%
   # the other columns are the same as the summarised one
   select(1:12) %>%
@@ -73,7 +73,7 @@ doses_by_date %>%
   mutate(dosi_totali = cumsum(consegne)) -> doses_by_date_long
 ```
 
-# Some Visualisations
+# Vaccinations: First and Second Doses
 
 Now that the two are compatible, we could join them. However, given the structure of the data, we'd better create two new separate tables: for instance, since we cannot observe to who the first and second shots are administered, we can create a new table with this info only.
 
@@ -89,11 +89,9 @@ vaccinations_by_date %>%
   ) -> vaccinations_long
 ```
 
-## Cumulative Vaccinations Data
-
 Vaccines from Moderna are so few right now that we might as well group by it. In the future, comparing how shots are administered by each supplier would bear greater value.
 
-```{r}
+```{r, message=FALSE}
 vaccinations_long %>%
   group_by(data, dose) %>%
   summarise(across(where(is.numeric), sum)) %>%
@@ -113,7 +111,7 @@ vaccinations_long %>%
 ```
 We can also show it as a percentage: it's a bit more complicated since we have to move from wider to create the new percentage columns and then back to longer for plotting.
 
-```{r}
+```{r, message=FALSE}
 vaccinations_long %>%
   group_by(data, dose) %>%
   summarise(across(where(is.numeric), sum)) %>%
@@ -157,7 +155,7 @@ vaccinations_long %>%
 
 We can also plot a line with daily shots (again, data is grouped by `fornitore`):
 
-```{r}
+```{r, message=FALSE}
 vaccinations_long %>%
   group_by(data, dose) %>%
   summarise(across(where(is.numeric), sum)) %>%
@@ -180,7 +178,7 @@ vaccinations_long %>%
 
 We will be using a call to `ggpubr::ggarrange()`:
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, message=FALSE}
 p1 <- vaccinations_long %>%
   group_by(data, dose) %>%
   summarise(across(where(is.numeric), sum)) %>%
@@ -239,11 +237,31 @@ p2 <- vaccinations_long %>%
 ggpubr::ggarrange(p1, p2, nrow = 2)
 ```
 
+# Comparing First and Second Doses
+
+```{r, message=FALSE, warning=FALSE}
+vaccinations_by_date %>%
+  filter(fornitore == 'Pfizer/BioNTech') %>%
+  select(data, prima_dose, seconda_dose) %>%
+  bind_cols(lead = lead(.$seconda_dose, 20)) %>%
+  ggplot(aes(data, cumsum(prima_dose))) +
+  geom_line(col = 'salmon') +
+  geom_line(aes(y = cumsum(lead)), col = 'cornflowerblue') +
+  labs(
+    title = 'Total First and Second Doses Injected',
+    subtitle = 'Red is the total number of first doses\nBlue is the total number of second doses',
+    x = NULL,
+    y = NULL
+  )
+```
+
 # To whom doses are administered to?
 
 Let's use vaccinations data to see how shots are distributed.
 
-## At the National Level
+## Male and Female
+
+### National Level
 
 ```{r}
 vaccinations_by_area %>%
@@ -293,7 +311,7 @@ vaccinations_by_area %>%
 
 At the national level, more women are being vaccinated than men. This may also be due to more of them being health workers.
 
-### Faceting
+### Regional Level with `facet_grid()`
 
 We exploit the extra `area` information to see these proportions at the local level. Given the high number of regions, it's won't look pretty, at all! I shall get back to this with `shiny`, soon.
 
@@ -303,7 +321,7 @@ vaccinations_by_area %>%
   pivot_longer(!c(data, area), names_to = 'sesso', values_to = 'count') %>%
   ggplot(aes(data, count, fill = sesso)) +
   geom_col() +
-  facet_wrap(~ area, nrow = 6) +
+  facet_wrap(~ area, nrow = 3) +
   labs(
     title = 'Vaccinations by Sex, per Area',
     subtitle = 'Blue is male, red is female',
@@ -311,14 +329,45 @@ vaccinations_by_area %>%
     y = NULL,
     fill = NULL
   ) +
+  # to make the dates fit! thanks to `r-graphics.org`!
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
   theme(legend.position = 'none')
+```
+
+We did manage to avoid getting an absolute awful graph, though!
+
+## By Category
+
+```{r}
+vaccinations_by_area %>%
+  # show off some other selection syntax
+  select(data, area, operatori_sanitari:ospiti_rsa) %>%
+  # for now, no area
+  group_by(data) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  pivot_longer(
+    !data,
+    names_to = 'categoria',
+    values_to = 'count'
+  ) %>%
+  ggplot(aes(data, count, fill = categoria)) +
+  geom_col() +
+  theme(legend.position = 'bottom') +
+  scale_fill_viridis_d(begin = 0.2, end = 0.75) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
+  labs(
+    title = 'Vaccinations by category',
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  )
 ```
 
 # Who's doing better?
 
 Let's use some other data to find the region which is performing better. Let's load the data:
 
-```{r}
+```{r, message=F}
 read_csv('https://raw.githubusercontent.com/orizzontipolitici/covid19-vaccine-data/main/data_ita/totals_by_area_ita.csv') %>%
   select(-NUTS2, -nome) %>%
   mutate(area = as.factor(area)) -> totals_by_area
