@@ -1,0 +1,11 @@
+---
+title: R-Reticulate
+author: Luca Baggi
+date: '2021-01-31'
+slug: []
+categories: []
+tags:
+  - reticulate
+  - python
+---
+
