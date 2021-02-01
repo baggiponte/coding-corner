@@ -7,5 +7,21 @@ categories: []
 tags:
   - reticulate
   - python
+draft: true
 ---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, warning = FALSE, message = FALSE, 
+                      # tidy = "styler", fig.width = 8, fig.height = 5,
+                      echo = TRUE, dpi = 300, cache.lazy = FALSE)
+
+library(reticulate)
+```
+
+```{python}
+a = 2
+b = 3
+
+print(a+b)
+```
 

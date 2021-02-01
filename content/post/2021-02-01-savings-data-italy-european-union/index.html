@@ -1,0 +1,65 @@
+---
+title: Analyse Savings Data in Italy and the EU
+author: Luca Baggi
+date: '2021-02-01'
+slug: savings-data-italy-european-union
+categories: []
+tags:
+  - economics
+  - visualisation
+  - eu
+draft: true
+---
+
+<script src="{{< blogdown/postref >}}index_files/header-attrs/header-attrs.js"></script>
+
+
+<pre class="r"><code>read_tsv(
+  &#39;~/Downloads/savings_from_1999.tsv&#39;,
+  na = &quot;:&quot;
+) %&gt;%
+  rename(names = 1) %&gt;%
+  separate(names, sep = &#39;,&#39;, into = c(&#39;a&#39;, &#39;b&#39;, &#39;c&#39;, &#39;d&#39;, &#39;e&#39;, &#39;f&#39;)) %&gt;%
+  rename(country = f) %&gt;%
+  select(country:last_col()) -&gt; savings</code></pre>
+<pre class="r"><code>colnames(savings)</code></pre>
+<pre><code>##  [1] &quot;country&quot; &quot;1999-Q1&quot; &quot;1999-Q2&quot; &quot;1999-Q3&quot; &quot;1999-Q4&quot; &quot;2000-Q1&quot; &quot;2000-Q2&quot;
+##  [8] &quot;2000-Q3&quot; &quot;2000-Q4&quot; &quot;2001-Q1&quot; &quot;2001-Q2&quot; &quot;2001-Q3&quot; &quot;2001-Q4&quot; &quot;2002-Q1&quot;
+## [15] &quot;2002-Q2&quot; &quot;2002-Q3&quot; &quot;2002-Q4&quot; &quot;2003-Q1&quot; &quot;2003-Q2&quot; &quot;2003-Q3&quot; &quot;2003-Q4&quot;
+## [22] &quot;2004-Q1&quot; &quot;2004-Q2&quot; &quot;2004-Q3&quot; &quot;2004-Q4&quot; &quot;2005-Q1&quot; &quot;2005-Q2&quot; &quot;2005-Q3&quot;
+## [29] &quot;2005-Q4&quot; &quot;2006-Q1&quot; &quot;2006-Q2&quot; &quot;2006-Q3&quot; &quot;2006-Q4&quot; &quot;2007-Q1&quot; &quot;2007-Q2&quot;
+## [36] &quot;2007-Q3&quot; &quot;2007-Q4&quot; &quot;2008-Q1&quot; &quot;2008-Q2&quot; &quot;2008-Q3&quot; &quot;2008-Q4&quot; &quot;2009-Q1&quot;
+## [43] &quot;2009-Q2&quot; &quot;2009-Q3&quot; &quot;2009-Q4&quot; &quot;2010-Q1&quot; &quot;2010-Q2&quot; &quot;2010-Q3&quot; &quot;2010-Q4&quot;
+## [50] &quot;2011-Q1&quot; &quot;2011-Q2&quot; &quot;2011-Q3&quot; &quot;2011-Q4&quot; &quot;2012-Q1&quot; &quot;2012-Q2&quot; &quot;2012-Q3&quot;
+## [57] &quot;2012-Q4&quot; &quot;2013-Q1&quot; &quot;2013-Q2&quot; &quot;2013-Q3&quot; &quot;2013-Q4&quot; &quot;2014-Q1&quot; &quot;2014-Q2&quot;
+## [64] &quot;2014-Q3&quot; &quot;2014-Q4&quot; &quot;2015-Q1&quot; &quot;2015-Q2&quot; &quot;2015-Q3&quot; &quot;2015-Q4&quot; &quot;2016-Q1&quot;
+## [71] &quot;2016-Q2&quot; &quot;2016-Q3&quot; &quot;2016-Q4&quot; &quot;2017-Q1&quot; &quot;2017-Q2&quot; &quot;2017-Q3&quot; &quot;2017-Q4&quot;
+## [78] &quot;2018-Q1&quot; &quot;2018-Q2&quot; &quot;2018-Q3&quot; &quot;2018-Q4&quot; &quot;2019-Q1&quot; &quot;2019-Q2&quot; &quot;2019-Q3&quot;
+## [85] &quot;2019-Q4&quot; &quot;2020-Q1&quot; &quot;2020-Q2&quot; &quot;2020-Q3&quot;</code></pre>
+<pre class="r"><code>rownames(savings) &lt;- savings$country
+
+savings %&gt;%
+  pivot_longer(!country, names_to = &#39;quarters&#39;, values_to = &#39;savings&#39;) %&gt;%
+  mutate(
+    quarters = lubridate::yq(quarters),
+    savings = savings / 100
+  ) %&gt;%
+  filter(
+    country != &#39;RO&#39;,
+    country != &#39;EU28&#39;
+  ) %&gt;%
+  # rename(EU27 = EU27_2020) %&gt;%
+  ggplot(aes(quarters, savings, col = country)) +
+  geom_line() +
+  facet_wrap(~ country) +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal() +
+  theme(legend.position = &#39;none&#39;) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
+  labs(
+    title = &#39;Household Savings Rate in the EU&#39;,
+    subtitle = &#39;From 1991 to 2020, quarterly&#39;,
+    x = NULL,
+    y = NULL
+  )</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-3-1.png" width="2100" /></p>

@@ -35,7 +35,8 @@ read_csv(
   # the other columns are the same as the summarised one
   select(1:12) %&gt;%
   group_by(data, fornitore) %&gt;%
-  summarise(across(where(is.numeric), sum)) -&gt; vaccinations_by_date</code></pre>
+  summarise(across(where(is.numeric), sum)) %&gt;%
+  ungroup() -&gt; vaccinations_by_date</code></pre>
 <p>Then, let’s move to vaccine data. This seems a bit more challenging at first, as we need to pack the two columns with the total deliveries of each supplier into a single one. <code>pivot_longer()</code> comes to rescue!</p>
 <pre class="r"><code>doses_by_date %&gt;%
   # we will just need data and the two supplier cols
@@ -154,9 +155,9 @@ We can also show it as a percentage: it’s a bit more complicated since we have
 <div id="comparing-first-and-second-doses" class="section level1">
 <h1>Comparing First and Second Doses</h1>
 <pre class="r"><code>vaccinations_by_date %&gt;%
-  filter(fornitore == &#39;Pfizer/BioNTech&#39;) %&gt;%
+  filter(fornitore != &#39;Moderna&#39;) %&gt;%
   select(data, prima_dose, seconda_dose) %&gt;%
-  bind_cols(lead = lead(.$seconda_dose, 20)) %&gt;%
+  mutate(lead = lead(seconda_dose, 20)) %&gt;%
   ggplot(aes(data, cumsum(prima_dose))) +
   geom_line(col = &#39;salmon&#39;) +
   geom_line(aes(y = cumsum(lead)), col = &#39;cornflowerblue&#39;) +

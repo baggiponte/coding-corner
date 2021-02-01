@@ -1,0 +1,62 @@
+---
+title: Analyse Savings Data in Italy and the EU
+author: Luca Baggi
+date: '2021-02-01'
+slug: savings-data-italy-european-union
+categories: []
+tags:
+  - economics
+  - visualisation
+  - eu
+draft: true
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, warning = FALSE, message = FALSE, 
+                      # tidy = "styler", fig.width = 8, fig.height = 5,
+                      echo = TRUE, dpi = 300, cache.lazy = FALSE)
+
+library(tidyverse)
+```
+
+```{r}
+read_tsv(
+  '~/Downloads/savings_from_1999.tsv',
+  na = ":"
+) %>%
+  rename(names = 1) %>%
+  separate(names, sep = ',', into = c('a', 'b', 'c', 'd', 'e', 'f')) %>%
+  rename(country = f) %>%
+  select(country:last_col()) -> savings
+```
+
+```{r}
+colnames(savings)
+rownames(savings) <- savings$country
+
+savings %>%
+  pivot_longer(!country, names_to = 'quarters', values_to = 'savings') %>%
+  mutate(
+    quarters = lubridate::yq(quarters),
+    savings = savings / 100
+  ) %>%
+  filter(
+    country != 'RO',
+    country != 'EU28'
+  ) %>%
+  # rename(EU27 = EU27_2020) %>%
+  ggplot(aes(quarters, savings, col = country)) +
+  geom_line() +
+  facet_wrap(~ country) +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal() +
+  theme(legend.position = 'none') +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
+  labs(
+    title = 'Household Savings Rate in the EU',
+    subtitle = 'From 1991 to 2020, quarterly',
+    x = NULL,
+    y = NULL
+  )
+```
+

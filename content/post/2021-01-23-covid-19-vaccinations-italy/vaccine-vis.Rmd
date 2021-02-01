@@ -48,7 +48,8 @@ vaccinations_by_area %>%
   # the other columns are the same as the summarised one
   select(1:12) %>%
   group_by(data, fornitore) %>%
-  summarise(across(where(is.numeric), sum)) -> vaccinations_by_date
+  summarise(across(where(is.numeric), sum)) %>%
+  ungroup() -> vaccinations_by_date
 ```
 
 Then, let's move to vaccine data. This seems a bit more challenging at first, as we need to pack the two columns with the total deliveries of each supplier into a single one. `pivot_longer()` comes to rescue!
@@ -241,9 +242,9 @@ ggpubr::ggarrange(p1, p2, nrow = 2)
 
 ```{r, message=FALSE, warning=FALSE}
 vaccinations_by_date %>%
-  filter(fornitore == 'Pfizer/BioNTech') %>%
+  filter(fornitore != 'Moderna') %>%
   select(data, prima_dose, seconda_dose) %>%
-  bind_cols(lead = lead(.$seconda_dose, 20)) %>%
+  mutate(lead = lead(seconda_dose, 20)) %>%
   ggplot(aes(data, cumsum(prima_dose))) +
   geom_line(col = 'salmon') +
   geom_line(aes(y = cumsum(lead)), col = 'cornflowerblue') +
